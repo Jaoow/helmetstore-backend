@@ -5,6 +5,7 @@ import com.jaoow.helmetstore.dto.summary.ProductVariantSaleSummary;
 import com.jaoow.helmetstore.dto.summary.ProductVariantStockSummary;
 import com.jaoow.helmetstore.model.Product;
 import com.jaoow.helmetstore.model.PurchaseOrderStatus;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -22,7 +23,6 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
                     SUM(s.unitPrice * s.quantity) AS totalRevenue,
                     SUM(s.totalProfit) AS totalProfit
                     FROM Sale s
-                    JOIN ProductVariant pv ON pv.id = s.productVariant.id
                     GROUP BY s.productVariant.id
             )
             SELECT
@@ -30,7 +30,7 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
                 p.model AS model,
                 p.color AS color,
                 p.imgUrl AS imgUrl,
-                COALESCE(p.lastPurchaseDate, NULL) AS lastPurchaseDate,
+                p.lastPurchaseDate AS lastPurchaseDate,
                 COALESCE(p.lastPurchasePrice, 0) AS lastPurchasePrice,
                 pv.id AS variantId,
                 pv.sku AS sku,
@@ -109,7 +109,7 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
                 pv.id AS variantId,
                 pv.sku AS sku,
                 pv.size AS size,
-                COALESCE(ss.lastSaleDate, NULL) AS lastSaleDate,
+                ss.lastSaleDate AS lastSaleDate,
                 COALESCE(ss.totalSold, 0) AS totalSold,
                 COALESCE(ss.totalRevenue, 0) AS totalRevenue,
                 COALESCE(ss.totalProfit, 0) AS totalProfit
@@ -120,7 +120,8 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
             """)
     List<ProductVariantSaleSummary> findAllWithSalesData();
 
-    @Query("SELECT DISTINCT p FROM Product p JOIN FETCH p.variants pv ORDER BY p.model ASC, p.color ASC, pv.size")
+    @EntityGraph(attributePaths = {"variants"})
+    @Query("SELECT DISTINCT p FROM Product p ORDER BY p.model, p.color")
     List<Product> findAllWithVariants();
 
 }
