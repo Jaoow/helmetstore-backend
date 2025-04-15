@@ -1,12 +1,11 @@
-package com.jaoow.helmetstore.model;
+package com.jaoow.helmetstore.model.inventory;
 
-import com.jaoow.helmetstore.model.inventory.Inventory;
+import com.jaoow.helmetstore.model.ProductVariant;
 import jakarta.persistence.*;
 import lombok.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-
 
 @Entity
 @Getter
@@ -14,22 +13,19 @@ import java.time.LocalDate;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class Sale {
+public class InventoryItem {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column
-    private LocalDate date;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    private ProductVariant productVariant;
-
     private int quantity;
 
-    private BigDecimal unitPrice;
+    private BigDecimal lastPurchasePrice;
 
-    private BigDecimal totalProfit;
+    private LocalDate lastPurchaseDate;
+
+    @ManyToOne(optional = false)
+    private ProductVariant productVariant;
 
     @ManyToOne(optional = false)
     private Inventory inventory;

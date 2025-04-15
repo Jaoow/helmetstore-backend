@@ -1,5 +1,6 @@
 package com.jaoow.helmetstore.model;
 
+import com.jaoow.helmetstore.model.inventory.Inventory;
 import jakarta.persistence.*;
 import lombok.*;
 import java.math.BigDecimal;
@@ -17,7 +18,7 @@ public class PurchaseOrder {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(unique = true)
+    @Column(nullable = false)
     private String orderNumber;
 
     @Enumerated(EnumType.STRING)
@@ -31,4 +32,7 @@ public class PurchaseOrder {
 
     @Column(precision = 10, scale = 2)
     private BigDecimal totalAmount;
+
+    @ManyToOne
+    private Inventory inventory;
 }

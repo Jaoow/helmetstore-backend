@@ -3,9 +3,6 @@ package com.jaoow.helmetstore.model;
 import jakarta.persistence.*;
 import lombok.*;
 
-import java.util.ArrayList;
-import java.util.List;
-
 @Entity
 @Getter
 @Setter
@@ -21,12 +18,7 @@ public class ProductVariant {
 
     private String size;
 
-    private int quantity = 0;
-
     @ManyToOne
     private Product product;
-
-    @OneToMany(mappedBy = "productVariant", fetch = FetchType.LAZY)
-    private List<Sale> sales = new ArrayList<>();
 
 }
