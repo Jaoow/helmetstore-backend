@@ -60,7 +60,7 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, Lo
             LEFT JOIN SalesSummary ss ON ss.variantId = pv.id
             WHERE ii.inventory = :inventory
             GROUP BY
-                p.id, pv.id, ii.quantity, ss.lastSaleDate, ss.totalSold, ss.totalRevenue, ss.totalProfit
+                p.id, pv.id, ii.quantity, ii.lastPurchaseDate, ii.lastPurchasePrice, ss.lastSaleDate, ss.totalSold, ss.totalRevenue, ss.totalProfit
             ORDER BY p.model ASC, p.color ASC, pv.size
             """)
     List<ProductVariantSalesAndStockSummary> findAllWithSalesAndPurchaseDataByInventory(
