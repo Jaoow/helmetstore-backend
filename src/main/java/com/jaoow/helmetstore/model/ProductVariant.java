@@ -18,7 +18,7 @@ public class ProductVariant {
 
     private String size;
 
-    @ManyToOne
+    @ManyToOne(optional = false)
     private Product product;
 
 }

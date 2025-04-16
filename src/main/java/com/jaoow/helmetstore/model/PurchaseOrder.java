@@ -33,6 +33,6 @@ public class PurchaseOrder {
     @Column(precision = 10, scale = 2)
     private BigDecimal totalAmount;
 
-    @ManyToOne
+    @ManyToOne(optional = false)
     private Inventory inventory;
 }

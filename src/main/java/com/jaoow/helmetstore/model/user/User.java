@@ -9,7 +9,7 @@ import org.hibernate.annotations.UpdateTimestamp;
 import java.util.Set;
 
 @Entity
-@Table(name = "_user")
+@Table(name = "app_user")
 @Getter
 @Setter
 @NoArgsConstructor
