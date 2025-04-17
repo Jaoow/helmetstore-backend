@@ -24,6 +24,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.security.Principal;
+import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -80,93 +82,113 @@ public class PurchaseOrderService {
         }
 
         PurchaseOrder purchaseOrder = modelMapper.map(orderCreateDTO, PurchaseOrder.class);
-        PurchaseOrder finalPurchaseOrder = purchaseOrder;
-        List<PurchaseOrderItem> items = orderCreateDTO.getItems().stream()
-                .map(itemDTO -> {
-                    ProductVariant variant = productVariantRepository.findById(itemDTO.getProductVariantId())
-                            .orElseThrow(() -> new ProductNotFoundException(itemDTO.getProductVariantId()));
-
-                    return PurchaseOrderItem.builder()
-                            .productVariant(variant)
-                            .quantity(itemDTO.getQuantity())
-                            .purchasePrice(itemDTO.getPurchasePrice())
-                            .purchaseOrder(finalPurchaseOrder)
-                            .build();
-                })
-                .collect(Collectors.toList());
-
-        BigDecimal totalAmount = items.stream()
-                .map(item -> item.getPurchasePrice().multiply(BigDecimal.valueOf(item.getQuantity())))
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
         purchaseOrder.setInventory(inventory);
-        purchaseOrder.setTotalAmount(totalAmount);
+
+        List<PurchaseOrderItem> items = createPurchaseOrderItems(orderCreateDTO, purchaseOrder, inventory);
+        BigDecimal totalAmount = calculateTotalAmount(items);
+
         purchaseOrder.setItems(items);
+        purchaseOrder.setTotalAmount(totalAmount);
 
         purchaseOrder = purchaseOrderRepository.save(purchaseOrder);
+
         return modelMapper.map(purchaseOrder, PurchaseOrderDTO.class);
+    }
+
+    private List<PurchaseOrderItem> createPurchaseOrderItems(PurchaseOrderCreateDTO orderCreateDTO, PurchaseOrder purchaseOrder, Inventory inventory) {
+        List<PurchaseOrderItem> items = new ArrayList<>();
+
+        for (PurchaseOrderItemDTO itemDTO : orderCreateDTO.getItems()) {
+            ProductVariant variant = productVariantRepository.findById(itemDTO.getProductVariantId())
+                    .orElseThrow(() -> new ProductNotFoundException(itemDTO.getProductVariantId()));
+
+            PurchaseOrderItem orderItem = PurchaseOrderItem.builder()
+                    .productVariant(variant)
+                    .quantity(itemDTO.getQuantity())
+                    .purchasePrice(itemDTO.getPurchasePrice())
+                    .purchaseOrder(purchaseOrder)
+                    .build();
+
+            ensureInventoryItemExists(inventory, variant, itemDTO.getPurchasePrice(), purchaseOrder.getDate());
+            items.add(orderItem);
+        }
+
+        return items;
+    }
+
+    private void ensureInventoryItemExists(Inventory inventory, ProductVariant variant, BigDecimal price, LocalDate date) {
+        Optional<InventoryItem> inventoryItem = inventoryItemRepository.findByInventoryAndProductVariant(inventory, variant);
+        if (inventoryItem.isEmpty()) {
+            inventoryItemRepository.save(
+                    InventoryItem.builder()
+                            .inventory(inventory)
+                            .productVariant(variant)
+                            .quantity(0)
+                            .lastPurchasePrice(price)
+                            .lastPurchaseDate(date)
+                            .build()
+            );
+        }
+    }
+
+    private BigDecimal calculateTotalAmount(List<PurchaseOrderItem> items) {
+        return items.stream()
+                .map(item -> item.getPurchasePrice().multiply(BigDecimal.valueOf(item.getQuantity())))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
     @Transactional
-    public PurchaseOrderDTO update(Long id, PurchaseOrderUpdateDTO orderUpdateDTO, Principal principal) {
+    public PurchaseOrderDTO update(Long id, PurchaseOrderUpdateDTO dto, Principal principal) {
         Inventory inventory = inventoryHelper.getInventoryFromPrincipal(principal);
-        PurchaseOrder purchaseOrder = purchaseOrderRepository.findByIdAndInventory(id, inventory)
+        PurchaseOrder order = purchaseOrderRepository.findByIdAndInventory(id, inventory)
                 .orElseThrow(() -> new OrderNotFoundException(id));
 
-        if (orderUpdateDTO.getStatus() != null) {
-            handleStatusUpdate(orderUpdateDTO, purchaseOrder);
+        if (dto.getStatus() != null) {
+            updateStatus(order, dto.getStatus());
         }
 
-        if (orderUpdateDTO.getOrderNumber() != null) {
-            purchaseOrder.setOrderNumber(orderUpdateDTO.getOrderNumber());
-        }
-        if (orderUpdateDTO.getDate() != null) {
-            purchaseOrder.setDate(orderUpdateDTO.getDate());
-        }
+        Optional.ofNullable(dto.getOrderNumber()).ifPresent(order::setOrderNumber);
+        Optional.ofNullable(dto.getDate()).ifPresent(order::setDate);
 
-        purchaseOrder = purchaseOrderRepository.save(purchaseOrder);
-        return modelMapper.map(purchaseOrder, PurchaseOrderDTO.class);
+        order = purchaseOrderRepository.save(order);
+        return modelMapper.map(order, PurchaseOrderDTO.class);
     }
 
-    private void handleStatusUpdate(PurchaseOrderUpdateDTO orderUpdateDTO, PurchaseOrder purchaseOrder) {
-        if (purchaseOrder.getStatus().equals(PurchaseOrderStatus.DELIVERED) &&
-                orderUpdateDTO.getStatus().equals(PurchaseOrderStatus.CANCELED)) {
+    private void updateStatus(PurchaseOrder order, PurchaseOrderStatus newStatus) {
+        if (order.getStatus() == PurchaseOrderStatus.DELIVERED && newStatus == PurchaseOrderStatus.CANCELED) {
             throw new IllegalStateException("Não é possível cancelar um pedido entregue");
         }
 
-        if (orderUpdateDTO.getStatus().equals(PurchaseOrderStatus.DELIVERED)) {
-            purchaseOrder.getItems().forEach(orderItem -> {
-                ProductVariant productVariant = orderItem.getProductVariant();
-                Inventory inventory = purchaseOrder.getInventory();
-
-                Optional<InventoryItem> inventoryItem = inventoryItemRepository.findByInventoryAndProductVariant(inventory, productVariant);
-                if (inventoryItem.isPresent()) {
-                    InventoryItem item = inventoryItem.get();
-
-                    if (item.getLastPurchaseDate() == null || item.getLastPurchaseDate().isBefore(purchaseOrder.getDate())) {
-                        item.setLastPurchaseDate(purchaseOrder.getDate());
-                        item.setLastPurchasePrice(orderItem.getPurchasePrice());
-                    }
-
-                    item.setQuantity(item.getQuantity() + orderItem.getQuantity());
-                    inventoryItemRepository.save(item);
-                } else {
-                    InventoryItem newInventoryItem = InventoryItem.builder()
-                            .inventory(inventory)
-                            .productVariant(productVariant)
-                            .quantity(orderItem.getQuantity())
-                            .lastPurchasePrice(orderItem.getPurchasePrice())
-                            .lastPurchaseDate(purchaseOrder.getDate())
-                            .build();
-                    inventoryItemRepository.save(newInventoryItem);
-                }
-            });
-
-            productVariantRepository.saveAll(purchaseOrder.getItems().stream()
-                    .map(PurchaseOrderItem::getProductVariant)
-                    .collect(Collectors.toList()));
+        if (newStatus == PurchaseOrderStatus.DELIVERED) {
+            processDelivery(order);
         }
 
-        purchaseOrder.setStatus(orderUpdateDTO.getStatus());
+        order.setStatus(newStatus);
+    }
+
+    private void processDelivery(PurchaseOrder order) {
+        Inventory inventory = order.getInventory();
+
+        for (PurchaseOrderItem item : order.getItems()) {
+            InventoryItem inventoryItem = inventoryItemRepository
+                    .findByInventoryAndProductVariant(inventory, item.getProductVariant())
+                    .orElseGet(() -> InventoryItem.builder()
+                            .inventory(inventory)
+                            .productVariant(item.getProductVariant())
+                            .quantity(0)
+                            .build());
+
+            if (inventoryItem.getLastPurchaseDate() == null || inventoryItem.getLastPurchaseDate().isBefore(order.getDate())) {
+                inventoryItem.setLastPurchaseDate(order.getDate());
+                inventoryItem.setLastPurchasePrice(item.getPurchasePrice());
+            }
+
+            inventoryItem.setQuantity(inventoryItem.getQuantity() + item.getQuantity());
+            inventoryItemRepository.save(inventoryItem);
+        }
+
+        productVariantRepository.saveAll(order.getItems().stream()
+                .map(PurchaseOrderItem::getProductVariant)
+                .collect(Collectors.toList()));
     }
 }
