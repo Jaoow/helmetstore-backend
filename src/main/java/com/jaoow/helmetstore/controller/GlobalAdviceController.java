@@ -1,10 +1,9 @@
 package com.jaoow.helmetstore.controller;
 
-import com.jaoow.helmetstore.exception.InsufficientStockException;
-import com.jaoow.helmetstore.exception.OrderAlreadyExistsException;
-import com.jaoow.helmetstore.exception.OrderNotFoundException;
-import com.jaoow.helmetstore.exception.ProductNotFoundException;
+import com.jaoow.helmetstore.dto.ApiErrorResponse;
+import com.jaoow.helmetstore.exception.*;
 import io.jsonwebtoken.JwtException;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -13,79 +12,82 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
-import org.springframework.web.bind.annotation.ResponseStatus;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.time.Instant;
+import java.util.stream.Collectors;
 
 @Slf4j
 @ControllerAdvice
 public class GlobalAdviceController {
 
+    private ResponseEntity<ApiErrorResponse> buildError(HttpStatus status, String message, HttpServletRequest request) {
+        return new ResponseEntity<>(
+                ApiErrorResponse.builder()
+                        .timestamp(Instant.now())
+                        .status(status.value())
+                        .error(status.getReasonPhrase())
+                        .message(message)
+                        .path(request.getRequestURI())
+                        .build(),
+                status
+        );
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public ResponseEntity<Map<String, String>> handleValidationExceptions(MethodArgumentNotValidException ex) {
-        Map<String, String> errors = new HashMap<>();
-        ex.getBindingResult().getAllErrors().forEach(error -> {
-            String fieldName = ((org.springframework.validation.FieldError) error).getField();
-            String errorMessage = error.getDefaultMessage();
-            errors.put(fieldName, errorMessage);
-        });
-        return new ResponseEntity<>(errors, HttpStatus.BAD_REQUEST);
+    public ResponseEntity<ApiErrorResponse> handleValidationExceptions(MethodArgumentNotValidException ex, HttpServletRequest request) {
+        String message = ex.getBindingResult().getFieldErrors()
+                .stream()
+                .map(error -> error.getField() + ": " + error.getDefaultMessage())
+                .collect(Collectors.joining("; "));
+        return buildError(HttpStatus.BAD_REQUEST, message, request);
     }
 
     @ExceptionHandler(ConstraintViolationException.class)
-    @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public ResponseEntity<Map<String, String>> handleConstraintViolationExceptions(ConstraintViolationException ex) {
-        Map<String, String> errors = new HashMap<>();
-        ex.getConstraintViolations().forEach(violation -> {
-            String property = violation.getPropertyPath().toString();
-            String message = violation.getMessage();
-            errors.put(property, message);
-        });
-        return new ResponseEntity<>(errors, HttpStatus.BAD_REQUEST);
+    public ResponseEntity<ApiErrorResponse> handleConstraintViolationExceptions(ConstraintViolationException ex, HttpServletRequest request) {
+        String message = ex.getConstraintViolations()
+                .stream()
+                .map(violation -> violation.getPropertyPath() + ": " + violation.getMessage())
+                .collect(Collectors.joining("; "));
+        return buildError(HttpStatus.BAD_REQUEST, message, request);
     }
 
-    @ExceptionHandler(OrderAlreadyExistsException.class)
-    @ResponseStatus(HttpStatus.CONFLICT)
-    public ResponseEntity<String> handleOrderAlreadyExistsException(OrderAlreadyExistsException ex) {
-        return new ResponseEntity<>(ex.getMessage(), HttpStatus.CONFLICT);
+    @ExceptionHandler({
+            OrderAlreadyExistsException.class,
+            EmailAlreadyInUseException.class
+    })
+    public ResponseEntity<ApiErrorResponse> handleConflictExceptions(RuntimeException ex, HttpServletRequest request) {
+        return buildError(HttpStatus.CONFLICT, ex.getMessage(), request);
     }
 
-    @ExceptionHandler(OrderNotFoundException.class)
-    @ResponseStatus(HttpStatus.NOT_FOUND)
-    public ResponseEntity<String> handleOrderNotFoundException(OrderNotFoundException ex) {
-        return new ResponseEntity<>(ex.getMessage(), HttpStatus.NOT_FOUND);
+    @ExceptionHandler({
+            OrderNotFoundException.class,
+            ProductNotFoundException.class,
+            ResourceNotFoundException.class
+    })
+    public ResponseEntity<ApiErrorResponse> handleNotFoundExceptions(RuntimeException ex, HttpServletRequest request) {
+        return buildError(HttpStatus.NOT_FOUND, ex.getMessage(), request);
     }
 
-    @ExceptionHandler(ProductNotFoundException.class)
-    @ResponseStatus(HttpStatus.NOT_FOUND)
-    public ResponseEntity<String> handleProductNotFoundException(ProductNotFoundException ex) {
-        return new ResponseEntity<>(ex.getMessage(), HttpStatus.NOT_FOUND);
+    @ExceptionHandler({
+            InsufficientStockException.class,
+            IllegalStateException.class
+    })
+    public ResponseEntity<ApiErrorResponse> handleBadRequestExceptions(RuntimeException ex, HttpServletRequest request) {
+        return buildError(HttpStatus.BAD_REQUEST, ex.getMessage(), request);
     }
 
-    @ExceptionHandler(InsufficientStockException.class)
-    @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public ResponseEntity<String> handleInsufficientStockException(InsufficientStockException ex) {
-        return new ResponseEntity<>(ex.getMessage(), HttpStatus.BAD_REQUEST);
-    }
-
-    @ExceptionHandler(JwtException.class)
-    @ResponseStatus(HttpStatus.UNAUTHORIZED)
-    public ResponseEntity<String> handleExpiredJwtException(JwtException ex) {
-        return new ResponseEntity<>(ex.getMessage(), HttpStatus.UNAUTHORIZED);
-    }
-
-    @ExceptionHandler(BadCredentialsException.class)
-    @ResponseStatus(HttpStatus.UNAUTHORIZED)
-    public ResponseEntity<String> handleBadCredentialsException(BadCredentialsException ex) {
-        return new ResponseEntity<>("Invalid credentials", HttpStatus.UNAUTHORIZED);
+    @ExceptionHandler({
+            JwtException.class,
+            InvalidTokenException.class,
+            BadCredentialsException.class
+    })
+    public ResponseEntity<ApiErrorResponse> handleUnauthorizedExceptions(RuntimeException ex, HttpServletRequest request) {
+        return buildError(HttpStatus.UNAUTHORIZED, ex instanceof BadCredentialsException ? "Invalid credentials" : ex.getMessage(), request);
     }
 
     @ExceptionHandler(Exception.class)
-    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
-    public ResponseEntity<String> handleException(Exception ex) {
-        log.error("An error occurred", ex);
-        return new ResponseEntity<>(ex.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+    public ResponseEntity<ApiErrorResponse> handleAllUncaughtExceptions(Exception ex, HttpServletRequest request) {
+        log.error("Unhandled exception", ex);
+        return buildError(HttpStatus.INTERNAL_SERVER_ERROR, "Internal server error", request);
     }
 }
