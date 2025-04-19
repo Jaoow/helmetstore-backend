@@ -9,6 +9,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
+import java.security.Principal;
 import java.util.List;
 
 @RestController
@@ -23,17 +24,17 @@ public class PurchaseOrderController {
     }
 
     @GetMapping("/history")
-    public PurchaseOrderHistoryResponse getAllHistory() {
-        return purchaseOrderService.getHistory();
+    public PurchaseOrderHistoryResponse getAllHistory(Principal principal) {
+        return purchaseOrderService.getHistory(principal);
     }
 
     @PostMapping
-    public PurchaseOrderDTO create(@RequestBody @Valid PurchaseOrderCreateDTO purchaseOrderDTO) {
-        return purchaseOrderService.save(purchaseOrderDTO);
+    public PurchaseOrderDTO create(@RequestBody @Valid PurchaseOrderCreateDTO purchaseOrderDTO, Principal principal) {
+        return purchaseOrderService.save(purchaseOrderDTO, principal);
     }
 
     @PutMapping("/{id}")
-    public PurchaseOrderDTO update(@PathVariable Long id, @RequestBody @Valid PurchaseOrderUpdateDTO purchaseOrderUpdateDTO) {
-        return purchaseOrderService.update(id, purchaseOrderUpdateDTO);
+    public PurchaseOrderDTO update(@PathVariable Long id, @RequestBody @Valid PurchaseOrderUpdateDTO purchaseOrderUpdateDTO, Principal principal) {
+        return purchaseOrderService.update(id, purchaseOrderUpdateDTO, principal);
     }
 }

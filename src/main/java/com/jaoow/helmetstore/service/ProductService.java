@@ -9,6 +9,7 @@ import com.jaoow.helmetstore.repository.ProductRepository;
 import com.jaoow.helmetstore.repository.ProductVariantRepository;
 import lombok.RequiredArgsConstructor;
 import org.modelmapper.ModelMapper;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,6 +37,7 @@ public class ProductService {
     }
 
     @Transactional
+    @PreAuthorize("hasRole('ADMIN')")
     public ProductDto save(ProductCreateDTO productDTO) {
         Product product = modelMapper.map(productDTO, Product.class);
 
@@ -55,6 +57,7 @@ public class ProductService {
     }
 
     @Transactional
+    @PreAuthorize("hasRole('ADMIN')")
     public ProductDto update(Long id, ProductDto productDTO) {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new ProductNotFoundException(id));
@@ -88,7 +91,6 @@ public class ProductService {
                 if (existingVariant != null) {
                     existingVariant.setSku(variantDto.getSku());
                     existingVariant.setSize(variantDto.getSize());
-                    existingVariant.setQuantity(variantDto.getQuantity());
                     updatedVariants.add(existingVariant);
                     receivedVariantIds.add(variantDto.getId());
                 }
@@ -107,6 +109,7 @@ public class ProductService {
 
 
     @Transactional
+    @PreAuthorize("hasRole('ADMIN')")
     public void delete(Long id) {
         if (!productRepository.existsById(id)) {
             throw new ProductNotFoundException(id);

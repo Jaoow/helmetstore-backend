@@ -24,6 +24,6 @@ public class PurchaseOrderItem {
     @Column(precision = 10, scale = 2)
     private BigDecimal purchasePrice; // Preço de compra do produto neste pedido
 
-    @ManyToOne
+    @ManyToOne(optional = false)
     private PurchaseOrder purchaseOrder;
 }

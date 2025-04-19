@@ -3,8 +3,6 @@ package com.jaoow.helmetstore.model;
 import jakarta.persistence.*;
 import lombok.*;
 
-import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -24,10 +22,6 @@ public class Product {
     private String color;
 
     private String imgUrl;
-
-    private BigDecimal lastPurchasePrice;
-
-    private LocalDate lastPurchaseDate;
 
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL)
     private List<ProductVariant> variants = new ArrayList<>();

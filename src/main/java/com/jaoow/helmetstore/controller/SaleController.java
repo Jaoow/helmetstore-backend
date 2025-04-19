@@ -8,6 +8,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
+import java.security.Principal;
 import java.util.List;
 
 @RestController
@@ -22,12 +23,12 @@ public class SaleController {
     }
 
     @GetMapping("/history")
-    public SaleHistoryResponse getHistory() {
-        return saleService.getHistory();
+    public SaleHistoryResponse getHistory(Principal principal) {
+        return saleService.getHistory(principal);
     }
 
     @PostMapping
-    public SaleResponseDTO create(@RequestBody @Valid SaleCreateDTO saleCreateDTO) {
-        return saleService.save(saleCreateDTO);
+    public SaleResponseDTO create(@RequestBody @Valid SaleCreateDTO saleCreateDTO, Principal principal) {
+        return saleService.save(saleCreateDTO, principal);
     }
 }

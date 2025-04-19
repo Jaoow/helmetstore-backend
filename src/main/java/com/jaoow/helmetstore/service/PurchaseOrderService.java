@@ -6,20 +6,28 @@ import com.jaoow.helmetstore.dto.reference.SimpleProductVariantDTO;
 import com.jaoow.helmetstore.exception.OrderAlreadyExistsException;
 import com.jaoow.helmetstore.exception.OrderNotFoundException;
 import com.jaoow.helmetstore.exception.ProductNotFoundException;
-import com.jaoow.helmetstore.model.Product;
+import com.jaoow.helmetstore.helper.InventoryHelper;
 import com.jaoow.helmetstore.model.ProductVariant;
 import com.jaoow.helmetstore.model.PurchaseOrder;
 import com.jaoow.helmetstore.model.PurchaseOrderItem;
 import com.jaoow.helmetstore.model.PurchaseOrderStatus;
+import com.jaoow.helmetstore.model.inventory.Inventory;
+import com.jaoow.helmetstore.model.inventory.InventoryItem;
+import com.jaoow.helmetstore.repository.InventoryItemRepository;
 import com.jaoow.helmetstore.repository.ProductVariantRepository;
 import com.jaoow.helmetstore.repository.PurchaseOrderRepository;
 import lombok.RequiredArgsConstructor;
 import org.modelmapper.ModelMapper;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.security.Principal;
+import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -29,15 +37,21 @@ public class PurchaseOrderService {
     private final ModelMapper modelMapper;
     private final PurchaseOrderRepository purchaseOrderRepository;
     private final ProductVariantRepository productVariantRepository;
+    private final InventoryHelper inventoryHelper;
+    private final InventoryItemRepository inventoryItemRepository;
 
+    @Transactional(readOnly = true)
+    @PreAuthorize("hasRole('ADMIN')")
     public List<PurchaseOrderDTO> findAll() {
-        return purchaseOrderRepository.findAllWithItemsAndVariants().stream()
+        return purchaseOrderRepository.findAllByInventoryWithItemsAndVariants().stream()
                 .map(order -> modelMapper.map(order, PurchaseOrderDTO.class))
                 .collect(Collectors.toList());
     }
 
-    public PurchaseOrderHistoryResponse getHistory() {
-        List<PurchaseOrder> purchaseOrders = purchaseOrderRepository.findAllWithItemsAndVariants();
+    @Transactional(readOnly = true)
+    public PurchaseOrderHistoryResponse getHistory(Principal principal) {
+        Inventory inventory = inventoryHelper.getInventoryFromPrincipal(principal);
+        List<PurchaseOrder> purchaseOrders = purchaseOrderRepository.findAllByInventoryWithItemsAndVariants(inventory);
 
         List<OrderDetailDTO> orders = purchaseOrders.stream()
                 .map(order -> modelMapper.map(order, OrderDetailDTO.class))
@@ -60,83 +74,121 @@ public class PurchaseOrderService {
     }
 
     @Transactional
-    public PurchaseOrderDTO save(PurchaseOrderCreateDTO orderCreateDTO) {
-        PurchaseOrder purchaseOrder = modelMapper.map(orderCreateDTO, PurchaseOrder.class);
+    public PurchaseOrderDTO save(PurchaseOrderCreateDTO orderCreateDTO, Principal principal) {
+        Inventory inventory = inventoryHelper.getInventoryFromPrincipal(principal);
 
-        if (purchaseOrderRepository.existsByOrderNumber(orderCreateDTO.getOrderNumber())) {
+        if (purchaseOrderRepository.existsByInventoryAndOrderNumber(inventory, orderCreateDTO.getOrderNumber())) {
             throw new OrderAlreadyExistsException();
         }
 
-        PurchaseOrder finalPurchaseOrder = purchaseOrder;
-        List<PurchaseOrderItem> items = orderCreateDTO.getItems().stream()
-                .map(itemDTO -> {
-                    ProductVariant variant = productVariantRepository.findById(itemDTO.getProductVariantId())
-                            .orElseThrow(() -> new ProductNotFoundException(itemDTO.getProductVariantId()));
+        PurchaseOrder purchaseOrder = modelMapper.map(orderCreateDTO, PurchaseOrder.class);
+        purchaseOrder.setInventory(inventory);
 
-                    return PurchaseOrderItem.builder()
-                            .productVariant(variant)
-                            .quantity(itemDTO.getQuantity())
-                            .purchasePrice(itemDTO.getPurchasePrice())
-                            .purchaseOrder(finalPurchaseOrder)
-                            .build();
-                })
-                .collect(Collectors.toList());
+        List<PurchaseOrderItem> items = createPurchaseOrderItems(orderCreateDTO, purchaseOrder, inventory);
+        BigDecimal totalAmount = calculateTotalAmount(items);
 
-        BigDecimal totalAmount = items.stream()
-                .map(item -> item.getPurchasePrice().multiply(BigDecimal.valueOf(item.getQuantity())))
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        purchaseOrder.setTotalAmount(totalAmount);
         purchaseOrder.setItems(items);
+        purchaseOrder.setTotalAmount(totalAmount);
 
         purchaseOrder = purchaseOrderRepository.save(purchaseOrder);
+
         return modelMapper.map(purchaseOrder, PurchaseOrderDTO.class);
+    }
+
+    private List<PurchaseOrderItem> createPurchaseOrderItems(PurchaseOrderCreateDTO orderCreateDTO, PurchaseOrder purchaseOrder, Inventory inventory) {
+        List<PurchaseOrderItem> items = new ArrayList<>();
+
+        for (PurchaseOrderItemDTO itemDTO : orderCreateDTO.getItems()) {
+            ProductVariant variant = productVariantRepository.findById(itemDTO.getProductVariantId())
+                    .orElseThrow(() -> new ProductNotFoundException(itemDTO.getProductVariantId()));
+
+            PurchaseOrderItem orderItem = PurchaseOrderItem.builder()
+                    .productVariant(variant)
+                    .quantity(itemDTO.getQuantity())
+                    .purchasePrice(itemDTO.getPurchasePrice())
+                    .purchaseOrder(purchaseOrder)
+                    .build();
+
+            ensureInventoryItemExists(inventory, variant, itemDTO.getPurchasePrice(), purchaseOrder.getDate());
+            items.add(orderItem);
+        }
+
+        return items;
+    }
+
+    private void ensureInventoryItemExists(Inventory inventory, ProductVariant variant, BigDecimal price, LocalDate date) {
+        Optional<InventoryItem> inventoryItem = inventoryItemRepository.findByInventoryAndProductVariant(inventory, variant);
+        if (inventoryItem.isEmpty()) {
+            inventoryItemRepository.save(
+                    InventoryItem.builder()
+                            .inventory(inventory)
+                            .productVariant(variant)
+                            .quantity(0)
+                            .lastPurchasePrice(price)
+                            .lastPurchaseDate(date)
+                            .build()
+            );
+        }
+    }
+
+    private BigDecimal calculateTotalAmount(List<PurchaseOrderItem> items) {
+        return items.stream()
+                .map(item -> item.getPurchasePrice().multiply(BigDecimal.valueOf(item.getQuantity())))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
     @Transactional
-    public PurchaseOrderDTO update(Long id, PurchaseOrderUpdateDTO orderUpdateDTO) {
-        PurchaseOrder purchaseOrder = purchaseOrderRepository.findById(id)
+    public PurchaseOrderDTO update(Long id, PurchaseOrderUpdateDTO dto, Principal principal) {
+        Inventory inventory = inventoryHelper.getInventoryFromPrincipal(principal);
+        PurchaseOrder order = purchaseOrderRepository.findByIdAndInventory(id, inventory)
                 .orElseThrow(() -> new OrderNotFoundException(id));
 
-        if (orderUpdateDTO.getStatus() != null) {
-            handleStatusUpdate(orderUpdateDTO, purchaseOrder);
+        if (dto.getStatus() != null) {
+            updateStatus(order, dto.getStatus());
         }
 
-        if (orderUpdateDTO.getOrderNumber() != null) {
-            purchaseOrder.setOrderNumber(orderUpdateDTO.getOrderNumber());
-        }
-        if (orderUpdateDTO.getDate() != null) {
-            purchaseOrder.setDate(orderUpdateDTO.getDate());
-        }
+        Optional.ofNullable(dto.getOrderNumber()).ifPresent(order::setOrderNumber);
+        Optional.ofNullable(dto.getDate()).ifPresent(order::setDate);
 
-        purchaseOrder = purchaseOrderRepository.save(purchaseOrder);
-        return modelMapper.map(purchaseOrder, PurchaseOrderDTO.class);
+        order = purchaseOrderRepository.save(order);
+        return modelMapper.map(order, PurchaseOrderDTO.class);
     }
 
-    private void handleStatusUpdate(PurchaseOrderUpdateDTO orderUpdateDTO, PurchaseOrder purchaseOrder) {
-        if (purchaseOrder.getStatus().equals(PurchaseOrderStatus.DELIVERED) &&
-                orderUpdateDTO.getStatus().equals(PurchaseOrderStatus.CANCELED)) {
+    private void updateStatus(PurchaseOrder order, PurchaseOrderStatus newStatus) {
+        if (order.getStatus() == PurchaseOrderStatus.DELIVERED && newStatus == PurchaseOrderStatus.CANCELED) {
             throw new IllegalStateException("Não é possível cancelar um pedido entregue");
         }
 
-        if (orderUpdateDTO.getStatus().equals(PurchaseOrderStatus.DELIVERED)) {
-            purchaseOrder.getItems().forEach(orderItem -> {
-                ProductVariant productVariant = orderItem.getProductVariant();
-                Product mainProduct = productVariant.getProduct();
-
-                if (mainProduct.getLastPurchaseDate() == null || mainProduct.getLastPurchaseDate().isBefore(purchaseOrder.getDate())) {
-                    mainProduct.setLastPurchaseDate(purchaseOrder.getDate());
-                    mainProduct.setLastPurchasePrice(orderItem.getPurchasePrice());
-                }
-
-                productVariant.setQuantity(productVariant.getQuantity() + orderItem.getQuantity());
-            });
-
-            productVariantRepository.saveAll(purchaseOrder.getItems().stream()
-                    .map(PurchaseOrderItem::getProductVariant)
-                    .collect(Collectors.toList()));
+        if (newStatus == PurchaseOrderStatus.DELIVERED) {
+            processDelivery(order);
         }
 
-        purchaseOrder.setStatus(orderUpdateDTO.getStatus());
+        order.setStatus(newStatus);
+    }
+
+    private void processDelivery(PurchaseOrder order) {
+        Inventory inventory = order.getInventory();
+
+        for (PurchaseOrderItem item : order.getItems()) {
+            InventoryItem inventoryItem = inventoryItemRepository
+                    .findByInventoryAndProductVariant(inventory, item.getProductVariant())
+                    .orElseGet(() -> InventoryItem.builder()
+                            .inventory(inventory)
+                            .productVariant(item.getProductVariant())
+                            .quantity(0)
+                            .build());
+
+            if (inventoryItem.getLastPurchaseDate() == null || inventoryItem.getLastPurchaseDate().isBefore(order.getDate())) {
+                inventoryItem.setLastPurchaseDate(order.getDate());
+                inventoryItem.setLastPurchasePrice(item.getPurchasePrice());
+            }
+
+            inventoryItem.setQuantity(inventoryItem.getQuantity() + item.getQuantity());
+            inventoryItemRepository.save(inventoryItem);
+        }
+
+        productVariantRepository.saveAll(order.getItems().stream()
+                .map(PurchaseOrderItem::getProductVariant)
+                .collect(Collectors.toList()));
     }
 }

@@ -7,16 +7,23 @@ import com.jaoow.helmetstore.dto.sale.SaleHistoryResponse;
 import com.jaoow.helmetstore.dto.sale.SaleResponseDTO;
 import com.jaoow.helmetstore.exception.InsufficientStockException;
 import com.jaoow.helmetstore.exception.ProductNotFoundException;
+import com.jaoow.helmetstore.exception.ResourceNotFoundException;
+import com.jaoow.helmetstore.helper.InventoryHelper;
 import com.jaoow.helmetstore.model.ProductVariant;
+import com.jaoow.helmetstore.model.inventory.Inventory;
+import com.jaoow.helmetstore.model.inventory.InventoryItem;
 import com.jaoow.helmetstore.model.Sale;
+import com.jaoow.helmetstore.repository.InventoryItemRepository;
 import com.jaoow.helmetstore.repository.ProductVariantRepository;
 import com.jaoow.helmetstore.repository.SaleRepository;
 import lombok.RequiredArgsConstructor;
 import org.modelmapper.ModelMapper;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.security.Principal;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -24,11 +31,14 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class SaleService {
 
-    private final SaleRepository saleRepository;
     private final ModelMapper modelMapper;
+    private final InventoryHelper inventoryHelper;
+    private final SaleRepository saleRepository;
     private final ProductVariantRepository productVariantRepository;
+    private final InventoryItemRepository inventoryItemRepository;
 
     @Transactional(readOnly = true)
+    @PreAuthorize("hasRole('ADMIN')")
     public List<SaleResponseDTO> findAll() {
         return saleRepository.findAll().stream()
                 .map(sale -> modelMapper.map(sale, SaleResponseDTO.class))
@@ -36,19 +46,26 @@ public class SaleService {
     }
 
     @Transactional
-    public SaleResponseDTO save(SaleCreateDTO saleCreateDTO) {
-        Long variantId = saleCreateDTO.getVariantId();
-        ProductVariant productVariant = productVariantRepository.findById(variantId).orElseThrow(() -> new ProductNotFoundException(variantId));
+    public SaleResponseDTO save(SaleCreateDTO saleCreateDTO, Principal principal) {
+        Inventory inventory = inventoryHelper.getInventoryFromPrincipal(principal);
 
-        if (productVariant.getQuantity() < saleCreateDTO.getQuantity()) {
-            throw new InsufficientStockException("Estoque insuficiente para venda.");
+        Long variantId = saleCreateDTO.getVariantId();
+        ProductVariant productVariant = productVariantRepository.findById(variantId)
+                .orElseThrow(() -> new ProductNotFoundException(variantId));
+
+        InventoryItem inventoryItem = inventoryItemRepository.findByInventoryAndProductVariant(inventory, productVariant)
+                .orElseThrow(() -> new ResourceNotFoundException("Inventory item not found for variant ID: " + variantId));
+
+        if (inventoryItem.getQuantity() < saleCreateDTO.getQuantity()) {
+            throw new InsufficientStockException("Insufficient stock for variant ID: " + variantId);
         }
 
         Sale sale = modelMapper.map(saleCreateDTO, Sale.class);
         sale.setId(null);
+        sale.setInventory(inventory);
         sale.setProductVariant(productVariant);
 
-        BigDecimal lastPurchasePrice = sale.getProductVariant().getProduct().getLastPurchasePrice();
+        BigDecimal lastPurchasePrice = inventoryItem.getLastPurchasePrice();
         BigDecimal unitPrice = sale.getUnitPrice();
         BigDecimal quantity = BigDecimal.valueOf(sale.getQuantity());
 
@@ -58,15 +75,16 @@ public class SaleService {
         sale.setTotalProfit(totalProfit);
         saleRepository.save(sale);
 
-        productVariant.setQuantity(productVariant.getQuantity() - saleCreateDTO.getQuantity());
-        productVariantRepository.save(productVariant);
+        inventoryItem.setQuantity(inventoryItem.getQuantity() - saleCreateDTO.getQuantity());
+        inventoryItemRepository.save(inventoryItem);
 
         return modelMapper.map(sale, SaleResponseDTO.class);
     }
 
     @Transactional(readOnly = true)
-    public SaleHistoryResponse getHistory() {
-        List<Sale> sales = saleRepository.findAllWithProductVariantsAndProducts();
+    public SaleHistoryResponse getHistory(Principal principal) {
+        Inventory inventory = inventoryHelper.getInventoryFromPrincipal(principal);
+        List<Sale> sales = saleRepository.findAllByInventoryWithProductVariantsAndProducts(inventory);
 
         List<SaleResponseDTO> saleDTOs = sales.stream()
                 .map(sale -> modelMapper.map(sale, SaleResponseDTO.class))
