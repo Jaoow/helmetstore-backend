@@ -14,6 +14,8 @@ import java.util.Optional;
 @Repository
 public interface SaleRepository extends JpaRepository<Sale, Long> {
 
+    Optional<Sale> findByIdAndInventory(Long id, Inventory inventory);
+
     @Query("""
             SELECT new com.jaoow.helmetstore.dto.FinancialSummaryDTO(
                 (SELECT COALESCE(SUM(s.unitPrice * s.quantity), 0) FROM Sale s WHERE s.inventory = :inventory),

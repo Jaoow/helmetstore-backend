@@ -46,39 +46,91 @@ public class SaleService {
     }
 
     @Transactional
-    public SaleResponseDTO save(SaleCreateDTO saleCreateDTO, Principal principal) {
+    public SaleResponseDTO save(SaleCreateDTO dto, Principal principal) {
         Inventory inventory = inventoryHelper.getInventoryFromPrincipal(principal);
 
-        Long variantId = saleCreateDTO.getVariantId();
-        ProductVariant productVariant = productVariantRepository.findById(variantId)
-                .orElseThrow(() -> new ProductNotFoundException(variantId));
+        ProductVariant variant = getProductVariantOrThrow(dto.getVariantId());
+        InventoryItem item = getInventoryItemOrThrow(inventory, variant);
+        validateStock(item, dto.getQuantity());
 
-        InventoryItem inventoryItem = inventoryItemRepository.findByInventoryAndProductVariant(inventory, productVariant)
-                .orElseThrow(() -> new ResourceNotFoundException("Inventory item not found for variant ID: " + variantId));
-
-        if (inventoryItem.getQuantity() < saleCreateDTO.getQuantity()) {
-            throw new InsufficientStockException("Insufficient stock for variant ID: " + variantId);
-        }
-
-        Sale sale = modelMapper.map(saleCreateDTO, Sale.class);
+        Sale sale = modelMapper.map(dto, Sale.class);
         sale.setId(null);
         sale.setInventory(inventory);
-        sale.setProductVariant(productVariant);
+        sale.setProductVariant(variant);
 
-        BigDecimal lastPurchasePrice = inventoryItem.getLastPurchasePrice();
-        BigDecimal unitPrice = sale.getUnitPrice();
-        BigDecimal quantity = BigDecimal.valueOf(sale.getQuantity());
+        BigDecimal profit = calculateTotalProfit(dto.getUnitPrice(), item.getLastPurchasePrice(), dto.getQuantity());
+        sale.setTotalProfit(profit);
 
-        BigDecimal profitPerUnit = unitPrice.subtract(lastPurchasePrice);
-        BigDecimal totalProfit = profitPerUnit.multiply(quantity);
+        sale = saleRepository.save(sale);
 
-        sale.setTotalProfit(totalProfit);
-        saleRepository.save(sale);
-
-        inventoryItem.setQuantity(inventoryItem.getQuantity() - saleCreateDTO.getQuantity());
-        inventoryItemRepository.save(inventoryItem);
+        item.setQuantity(item.getQuantity() - dto.getQuantity());
+        inventoryItemRepository.save(item);
 
         return modelMapper.map(sale, SaleResponseDTO.class);
+    }
+
+    @Transactional
+    public SaleResponseDTO update(Long saleId, SaleCreateDTO dto, Principal principal) {
+        Inventory inventory = inventoryHelper.getInventoryFromPrincipal(principal);
+
+        Sale sale = saleRepository.findByIdAndInventory(saleId, inventory)
+                .orElseThrow(() -> new ResourceNotFoundException("Sale not found with ID: " + saleId));
+
+        ProductVariant oldVariant = sale.getProductVariant();
+        InventoryItem oldItem = getInventoryItemOrThrow(inventory, oldVariant);
+
+        int oldQty = sale.getQuantity();
+        int newQty = dto.getQuantity();
+
+        if (!dto.getVariantId().equals(oldVariant.getId())) {
+            oldItem.setQuantity(oldItem.getQuantity() + oldQty);
+            inventoryItemRepository.save(oldItem);
+
+            ProductVariant newVariant = getProductVariantOrThrow(dto.getVariantId());
+            InventoryItem newItem = getInventoryItemOrThrow(inventory, newVariant);
+            validateStock(newItem, newQty);
+
+            newItem.setQuantity(newItem.getQuantity() - newQty);
+            inventoryItemRepository.save(newItem);
+
+            sale.setProductVariant(newVariant);
+
+            BigDecimal profit = calculateTotalProfit(dto.getUnitPrice(), newItem.getLastPurchasePrice(), newQty);
+            sale.setTotalProfit(profit);
+        } else {
+            int diff = newQty - oldQty;
+            if (diff > 0) {
+                validateStock(oldItem, diff);
+            }
+
+            oldItem.setQuantity(oldItem.getQuantity() - diff);
+            inventoryItemRepository.save(oldItem);
+
+            BigDecimal profit = calculateTotalProfit(dto.getUnitPrice(), oldItem.getLastPurchasePrice(), newQty);
+            sale.setTotalProfit(profit);
+        }
+
+        sale.setQuantity(newQty);
+        sale.setUnitPrice(dto.getUnitPrice());
+        sale.setDate(dto.getDate());
+
+        sale = saleRepository.save(sale);
+        return modelMapper.map(sale, SaleResponseDTO.class);
+    }
+
+    @Transactional
+    public void delete(Long id, Principal principal) {
+        Inventory inventory = inventoryHelper.getInventoryFromPrincipal(principal);
+        Sale sale = saleRepository.findByIdAndInventory(id, inventory)
+                .orElseThrow(() -> new ResourceNotFoundException("Sale not found with ID: " + id));
+
+        InventoryItem item = inventoryItemRepository.findByInventoryAndProductVariant(sale.getInventory(), sale.getProductVariant())
+                .orElseThrow(() -> new ResourceNotFoundException("Inventory item not found for variant ID: " + sale.getProductVariant().getId()));
+
+        item.setQuantity(item.getQuantity() + sale.getQuantity());
+        inventoryItemRepository.save(item);
+
+        saleRepository.delete(sale);
     }
 
     @Transactional(readOnly = true)
@@ -103,5 +155,25 @@ public class SaleService {
                 .collect(Collectors.toList());
 
         return new SaleHistoryResponse(saleDTOs, products, productVariants);
+    }
+
+    private ProductVariant getProductVariantOrThrow(Long variantId) {
+        return productVariantRepository.findById(variantId)
+                .orElseThrow(() -> new ProductNotFoundException(variantId));
+    }
+
+    private InventoryItem getInventoryItemOrThrow(Inventory inventory, ProductVariant variant) {
+        return inventoryItemRepository.findByInventoryAndProductVariant(inventory, variant)
+                .orElseThrow(() -> new ResourceNotFoundException("Inventory item not found for variant ID: " + variant.getId()));
+    }
+
+    private void validateStock(InventoryItem item, int requiredQuantity) {
+        if (item.getQuantity() < requiredQuantity) {
+            throw new InsufficientStockException("Insufficient stock for variant ID: " + item.getProductVariant().getId());
+        }
+    }
+
+    private BigDecimal calculateTotalProfit(BigDecimal unitPrice, BigDecimal lastPurchasePrice, int quantity) {
+        return unitPrice.subtract(lastPurchasePrice).multiply(BigDecimal.valueOf(quantity));
     }
 }

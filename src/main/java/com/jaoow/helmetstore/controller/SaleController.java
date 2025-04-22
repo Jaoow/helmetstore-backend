@@ -31,4 +31,14 @@ public class SaleController {
     public SaleResponseDTO create(@RequestBody @Valid SaleCreateDTO saleCreateDTO, Principal principal) {
         return saleService.save(saleCreateDTO, principal);
     }
+
+    @PutMapping("/{id}")
+    public SaleResponseDTO update(@PathVariable Long id, @RequestBody @Valid SaleCreateDTO saleCreateDTO, Principal principal) {
+        return saleService.update(id, saleCreateDTO, principal);
+    }
+
+    @DeleteMapping("/{id}")
+    public void delete(@PathVariable Long id, Principal principal) {
+        saleService.delete(id, principal);
+    }
 }
