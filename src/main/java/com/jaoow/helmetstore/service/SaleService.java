@@ -61,11 +61,10 @@ public class SaleService {
         BigDecimal profit = calculateTotalProfit(dto.getUnitPrice(), item.getLastPurchasePrice(), dto.getQuantity());
         sale.setTotalProfit(profit);
 
-        sale = saleRepository.save(sale);
-
         item.setQuantity(item.getQuantity() - dto.getQuantity());
         inventoryItemRepository.save(item);
 
+        sale = saleRepository.save(sale);
         return modelMapper.map(sale, SaleResponseDTO.class);
     }
 
