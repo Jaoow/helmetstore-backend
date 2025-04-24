@@ -1,5 +1,6 @@
 package com.jaoow.helmetstore.service;
 
+import com.jaoow.helmetstore.cache.CacheNames;
 import com.jaoow.helmetstore.dto.FinancialSummaryDTO;
 import com.jaoow.helmetstore.dto.info.ProductStockDto;
 import com.jaoow.helmetstore.dto.summary.ProductVariantSaleSummary;
@@ -13,6 +14,7 @@ import com.jaoow.helmetstore.repository.SaleRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -32,11 +34,13 @@ public class ReportService {
     private final InventoryHelper inventoryHelper;
     private final InventoryItemRepository inventoryItemRepository;
 
+    @Cacheable(value = CacheNames.PRODUCT_INDICATORS, key = "#principal.name")
     public List<ProductVariantSalesAndStockSummary> getProductIndicators(Principal principal) {
         Inventory inventory = inventoryHelper.getInventoryFromPrincipal(principal);
         return inventoryItemRepository.findAllWithSalesAndPurchaseDataByInventory(EXCLUDED_STATUSES, inventory);
     }
 
+    @Cacheable(value = CacheNames.MOST_SOLD_PRODUCTS, key = "#principal.name")
     public List<ProductVariantSaleSummary> getMostSoldProducts(Principal principal) {
         Inventory inventory = inventoryHelper.getInventoryFromPrincipal(principal);
         List<ProductVariantSaleSummary> saleSummaries = inventoryItemRepository.findAllWithSalesDataByInventory(inventory);
@@ -46,6 +50,7 @@ public class ReportService {
                 .toList();
     }
 
+    @Cacheable(value = CacheNames.PRODUCT_STOCK, key = "#principal.name")
     public List<ProductStockDto> getProductStock(Principal principal) {
         Inventory inventory = inventoryHelper.getInventoryFromPrincipal(principal);
         List<ProductVariantStockSummary> projections = inventoryItemRepository.findAllWithStockDetailsByInventory(EXCLUDED_STATUSES, inventory);
@@ -74,6 +79,7 @@ public class ReportService {
         return modelMapper.map(projection, ProductStockDto.ProductStockVariantDto.class);
     }
 
+    @Cacheable(value = CacheNames.REVENUE_AND_PROFIT, key = "#principal.name")
     public FinancialSummaryDTO getRevenueAndProfit(Principal principal) {
         Inventory inventory = inventoryHelper.getInventoryFromPrincipal(principal);
         return saleRepository.getFinancialSummary(inventory)

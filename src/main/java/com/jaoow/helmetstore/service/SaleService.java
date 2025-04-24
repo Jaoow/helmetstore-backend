@@ -1,5 +1,6 @@
 package com.jaoow.helmetstore.service;
 
+import com.jaoow.helmetstore.cache.CacheNames;
 import com.jaoow.helmetstore.dto.reference.SimpleProductDTO;
 import com.jaoow.helmetstore.dto.reference.SimpleProductVariantDTO;
 import com.jaoow.helmetstore.dto.sale.SaleCreateDTO;
@@ -18,6 +19,9 @@ import com.jaoow.helmetstore.repository.ProductVariantRepository;
 import com.jaoow.helmetstore.repository.SaleRepository;
 import lombok.RequiredArgsConstructor;
 import org.modelmapper.ModelMapper;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -45,6 +49,13 @@ public class SaleService {
                 .collect(Collectors.toList());
     }
 
+    @Caching(evict = {
+            @CacheEvict(value = CacheNames.PRODUCT_INDICATORS, key = "#principal.name"),
+            @CacheEvict(value = CacheNames.MOST_SOLD_PRODUCTS, key = "#principal.name"),
+            @CacheEvict(value = CacheNames.PRODUCT_STOCK, key = "#principal.name"),
+            @CacheEvict(value = CacheNames.REVENUE_AND_PROFIT, key = "#principal.name"),
+            @CacheEvict(value = CacheNames.SALES_HISTORY, key = "#principal.name")
+    })
     @Transactional
     public SaleResponseDTO save(SaleCreateDTO dto, Principal principal) {
         Inventory inventory = inventoryHelper.getInventoryFromPrincipal(principal);
@@ -68,6 +79,13 @@ public class SaleService {
         return modelMapper.map(sale, SaleResponseDTO.class);
     }
 
+    @Caching(evict = {
+            @CacheEvict(value = CacheNames.PRODUCT_INDICATORS, key = "#principal.name"),
+            @CacheEvict(value = CacheNames.MOST_SOLD_PRODUCTS, key = "#principal.name"),
+            @CacheEvict(value = CacheNames.PRODUCT_STOCK, key = "#principal.name"),
+            @CacheEvict(value = CacheNames.REVENUE_AND_PROFIT, key = "#principal.name"),
+            @CacheEvict(value = CacheNames.SALES_HISTORY, key = "#principal.name")
+    })
     @Transactional
     public SaleResponseDTO update(Long saleId, SaleCreateDTO dto, Principal principal) {
         Inventory inventory = inventoryHelper.getInventoryFromPrincipal(principal);
@@ -117,6 +135,13 @@ public class SaleService {
         return modelMapper.map(sale, SaleResponseDTO.class);
     }
 
+    @Caching(evict = {
+            @CacheEvict(value = CacheNames.PRODUCT_INDICATORS, key = "#principal.name"),
+            @CacheEvict(value = CacheNames.MOST_SOLD_PRODUCTS, key = "#principal.name"),
+            @CacheEvict(value = CacheNames.PRODUCT_STOCK, key = "#principal.name"),
+            @CacheEvict(value = CacheNames.REVENUE_AND_PROFIT, key = "#principal.name"),
+            @CacheEvict(value = CacheNames.SALES_HISTORY, key = "#principal.name")
+    })
     @Transactional
     public void delete(Long id, Principal principal) {
         Inventory inventory = inventoryHelper.getInventoryFromPrincipal(principal);
@@ -132,6 +157,7 @@ public class SaleService {
         saleRepository.delete(sale);
     }
 
+    @Cacheable(value = CacheNames.SALES_HISTORY, key = "#principal.name")
     @Transactional(readOnly = true)
     public SaleHistoryResponse getHistory(Principal principal) {
         Inventory inventory = inventoryHelper.getInventoryFromPrincipal(principal);
