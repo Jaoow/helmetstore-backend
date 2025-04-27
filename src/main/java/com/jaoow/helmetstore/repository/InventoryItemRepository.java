@@ -29,6 +29,16 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, Lo
                 FROM Sale s
                 WHERE s.inventory = :inventory
                 GROUP BY s.productVariant.id
+            ),
+            StockSummary AS (
+                SELECT
+                    ii.productVariant.id AS variantId,
+                    COALESCE(SUM(CASE WHEN po.status NOT IN (:excludedStatuses) THEN poi.quantity ELSE 0 END), 0) AS incomingStock
+                FROM InventoryItem ii
+                LEFT JOIN PurchaseOrderItem poi ON poi.productVariant.id = ii.productVariant.id
+                LEFT JOIN poi.purchaseOrder po ON po.inventory = :inventory
+                WHERE ii.inventory = :inventory
+                GROUP BY ii.productVariant.id, ii.quantity
             )
             SELECT
                 p.id AS productId,
@@ -42,11 +52,12 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, Lo
                 pv.size AS size,
                 ii.quantity AS currentStock,
                 COALESCE(SUM(poi.quantity), 0) AS totalPurchased,
-                COALESCE(SUM(CASE WHEN po.status NOT IN (:excludedStatuses) THEN poi.quantity ELSE 0 END), 0) AS incomingStock,
+                COALESCE(s.incomingStock, 0) AS incomingStock,
                 COALESCE(ss.lastSaleDate, NULL) AS lastSaleDate,
                 COALESCE(ss.totalSold, 0) AS totalSold,
                 COALESCE(ss.totalRevenue, 0) AS totalRevenue,
                 COALESCE(ss.totalProfit, 0) AS totalProfit,
+                ii.quantity + s.incomingStock AS futureStock,
                 CASE
                     WHEN COALESCE(ss.totalRevenue, 0) > 0 THEN
                         (COALESCE(ss.totalProfit, 0) / COALESCE(ss.totalRevenue, 0)) * 100
@@ -58,9 +69,10 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, Lo
             LEFT JOIN PurchaseOrderItem poi ON poi.productVariant.id = pv.id
             LEFT JOIN poi.purchaseOrder po ON po.inventory = :inventory
             LEFT JOIN SalesSummary ss ON ss.variantId = pv.id
+            LEFT JOIN StockSummary s ON s.variantId = pv.id
             WHERE ii.inventory = :inventory
             GROUP BY
-                p.id, pv.id, ii.quantity, ii.lastPurchaseDate, ii.lastPurchasePrice, ss.lastSaleDate, ss.totalSold, ss.totalRevenue, ss.totalProfit
+                p.id, pv.id, ii.quantity, ii.lastPurchaseDate, ii.lastPurchasePrice, ss.lastSaleDate, ss.totalSold, ss.totalRevenue, ss.totalProfit, s.incomingStock
             ORDER BY p.model ASC, p.color ASC, pv.size
             """)
     List<ProductVariantSalesAndStockSummary> findAllWithSalesAndPurchaseDataByInventory(

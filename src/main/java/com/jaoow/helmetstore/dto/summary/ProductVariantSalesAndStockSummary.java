@@ -29,6 +29,8 @@ public interface ProductVariantSalesAndStockSummary {
 
     Integer getIncomingStock();
 
+    Integer getFutureStock();
+
     LocalDate getLastSaleDate();
 
     Integer getTotalSold();
