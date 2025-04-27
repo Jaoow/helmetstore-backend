@@ -1,5 +1,6 @@
 package com.jaoow.helmetstore.service;
 
+import com.jaoow.helmetstore.cache.CacheNames;
 import com.jaoow.helmetstore.dto.product.ProductCreateDTO;
 import com.jaoow.helmetstore.exception.ProductNotFoundException;
 import com.jaoow.helmetstore.model.Product;
@@ -9,6 +10,8 @@ import com.jaoow.helmetstore.repository.ProductRepository;
 import com.jaoow.helmetstore.repository.ProductVariantRepository;
 import lombok.RequiredArgsConstructor;
 import org.modelmapper.ModelMapper;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,12 +27,15 @@ public class ProductService {
     private final ModelMapper modelMapper;
     private final ProductVariantRepository productVariantRepository;
 
+    @Cacheable(value = CacheNames.PRODUCT)
+    @Transactional(readOnly = true)
     public List<ProductDto> findAll() {
         return productRepository.findAllWithVariants()
                 .stream().map((product) -> modelMapper.map(product, ProductDto.class))
                 .collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
     public ProductDto findById(Long id) {
         return productRepository.findById(id)
                 .map(product -> modelMapper.map(product, ProductDto.class))
@@ -38,6 +44,7 @@ public class ProductService {
 
     @Transactional
     @PreAuthorize("hasRole('ADMIN')")
+    @CacheEvict(value = CacheNames.PRODUCT, allEntries = true)
     public ProductDto save(ProductCreateDTO productDTO) {
         Product product = modelMapper.map(productDTO, Product.class);
 
@@ -58,6 +65,7 @@ public class ProductService {
 
     @Transactional
     @PreAuthorize("hasRole('ADMIN')")
+    @CacheEvict(value = CacheNames.PRODUCT, allEntries = true)
     public ProductDto update(Long id, ProductDto productDTO) {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new ProductNotFoundException(id));
@@ -110,6 +118,7 @@ public class ProductService {
 
     @Transactional
     @PreAuthorize("hasRole('ADMIN')")
+    @CacheEvict(value = CacheNames.PRODUCT, allEntries = true)
     public void delete(Long id) {
         if (!productRepository.existsById(id)) {
             throw new ProductNotFoundException(id);

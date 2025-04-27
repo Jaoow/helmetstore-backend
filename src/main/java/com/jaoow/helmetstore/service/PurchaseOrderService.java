@@ -1,5 +1,6 @@
 package com.jaoow.helmetstore.service;
 
+import com.jaoow.helmetstore.cache.CacheNames;
 import com.jaoow.helmetstore.dto.order.*;
 import com.jaoow.helmetstore.dto.reference.SimpleProductDTO;
 import com.jaoow.helmetstore.dto.reference.SimpleProductVariantDTO;
@@ -18,6 +19,9 @@ import com.jaoow.helmetstore.repository.ProductVariantRepository;
 import com.jaoow.helmetstore.repository.PurchaseOrderRepository;
 import lombok.RequiredArgsConstructor;
 import org.modelmapper.ModelMapper;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -48,6 +52,7 @@ public class PurchaseOrderService {
                 .collect(Collectors.toList());
     }
 
+    @Cacheable(value = CacheNames.PURCHASE_ORDER_HISTORY, key = "#principal.name")
     @Transactional(readOnly = true)
     public PurchaseOrderHistoryResponse getHistory(Principal principal) {
         Inventory inventory = inventoryHelper.getInventoryFromPrincipal(principal);
@@ -73,6 +78,7 @@ public class PurchaseOrderService {
         return new PurchaseOrderHistoryResponse(orders, products, productVariants);
     }
 
+    @CacheEvict(value = CacheNames.PURCHASE_ORDER_HISTORY, key = "#principal.name")
     @Transactional
     public PurchaseOrderDTO save(PurchaseOrderCreateDTO orderCreateDTO, Principal principal) {
         Inventory inventory = inventoryHelper.getInventoryFromPrincipal(principal);
@@ -137,6 +143,14 @@ public class PurchaseOrderService {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
+    @Caching(evict = {
+            @CacheEvict(value = CacheNames.PRODUCT_INDICATORS, key = "#principal.name"),
+            @CacheEvict(value = CacheNames.MOST_SOLD_PRODUCTS, key = "#principal.name"),
+            @CacheEvict(value = CacheNames.PRODUCT_STOCK, key = "#principal.name"),
+            @CacheEvict(value = CacheNames.REVENUE_AND_PROFIT, key = "#principal.name"),
+            @CacheEvict(value = CacheNames.PURCHASE_ORDER_HISTORY, key = "#principal.name")
+
+    })
     @Transactional
     public PurchaseOrderDTO update(Long id, PurchaseOrderUpdateDTO dto, Principal principal) {
         Inventory inventory = inventoryHelper.getInventoryFromPrincipal(principal);
