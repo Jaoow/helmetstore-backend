@@ -78,7 +78,11 @@ public class PurchaseOrderService {
         return new PurchaseOrderHistoryResponse(orders, products, productVariants);
     }
 
-    @CacheEvict(value = CacheNames.PURCHASE_ORDER_HISTORY, key = "#principal.name")
+    @Caching(evict = {
+            @CacheEvict(value = CacheNames.PRODUCT_INDICATORS, key = "#principal.name"),
+            @CacheEvict(value = CacheNames.PRODUCT_STOCK, key = "#principal.name"),
+            @CacheEvict(value = CacheNames.PURCHASE_ORDER_HISTORY, key = "#principal.name")
+    })
     @Transactional
     public PurchaseOrderDTO save(PurchaseOrderCreateDTO orderCreateDTO, Principal principal) {
         Inventory inventory = inventoryHelper.getInventoryFromPrincipal(principal);
