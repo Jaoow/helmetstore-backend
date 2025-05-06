@@ -58,6 +58,7 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, Lo
                 COALESCE(ss.totalRevenue, 0) AS totalRevenue,
                 COALESCE(ss.totalProfit, 0) AS totalProfit,
                 ii.quantity + s.incomingStock AS futureStock,
+                ii.quantity * COALESCE(ii.lastPurchasePrice, 0) AS totalStockValue,
                 CASE
                     WHEN COALESCE(ss.totalRevenue, 0) > 0 THEN
                         (COALESCE(ss.totalProfit, 0) / COALESCE(ss.totalRevenue, 0)) * 100

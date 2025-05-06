@@ -35,6 +35,8 @@ public interface ProductVariantSalesAndStockSummary {
 
     Integer getTotalSold();
 
+    BigDecimal getTotalStockValue();
+
     BigDecimal getTotalRevenue();
 
     BigDecimal getTotalProfit();
