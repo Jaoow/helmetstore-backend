@@ -8,6 +8,9 @@ import org.springframework.cache.caffeine.CaffeineCacheManager;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import java.time.Duration;
+import java.time.temporal.ChronoUnit;
+
 @Configuration
 @EnableCaching
 public class CacheConfig {
@@ -16,6 +19,7 @@ public class CacheConfig {
     public Caffeine<Object, Object> caffeineConfig() {
         return Caffeine.newBuilder()
                 .recordStats()
+                .expireAfterWrite(Duration.of(24, ChronoUnit.HOURS))
                 .maximumSize(500);
     }
 
