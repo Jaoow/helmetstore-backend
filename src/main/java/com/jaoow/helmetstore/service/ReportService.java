@@ -27,7 +27,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class ReportService {
 
-    private static final List<PurchaseOrderStatus> EXCLUDED_STATUSES = List.of(PurchaseOrderStatus.DELIVERED, PurchaseOrderStatus.CANCELED);
+    public static final List<PurchaseOrderStatus> EXCLUDED_STATUSES = List.of(PurchaseOrderStatus.DELIVERED, PurchaseOrderStatus.CANCELED);
 
     private final SaleRepository saleRepository;
     private final ModelMapper modelMapper;

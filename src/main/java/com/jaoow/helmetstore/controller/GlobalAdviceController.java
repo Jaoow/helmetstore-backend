@@ -53,7 +53,8 @@ public class GlobalAdviceController {
 
     @ExceptionHandler({
             OrderAlreadyExistsException.class,
-            EmailAlreadyInUseException.class
+            EmailAlreadyInUseException.class,
+            TokenAlreadyInUseException.class
     })
     public ResponseEntity<ApiErrorResponse> handleConflictExceptions(RuntimeException ex, HttpServletRequest request) {
         return buildError(HttpStatus.CONFLICT, ex.getMessage(), request);
