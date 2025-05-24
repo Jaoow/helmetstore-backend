@@ -8,6 +8,7 @@ import com.jaoow.helmetstore.model.PurchaseOrderStatus;
 import com.jaoow.helmetstore.model.inventory.Inventory;
 import com.jaoow.helmetstore.model.inventory.InventoryItem;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -154,4 +155,9 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, Lo
 
     Optional<InventoryItem> findByInventoryAndProductVariant(Inventory inventory, ProductVariant productVariant);
 
+    @Modifying
+    @Query("UPDATE InventoryItem ii SET ii.quantity = :quantity WHERE ii.productVariant.id = :variantId AND ii.inventory = :inventory")
+    void updateStock(@Param("variantId") Long variantId,
+                     @Param("quantity") int quantity,
+                     @Param("inventory") Inventory inventory);
 }
