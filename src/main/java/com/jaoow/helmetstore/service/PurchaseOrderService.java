@@ -43,6 +43,8 @@ public class PurchaseOrderService {
     private final ProductVariantRepository productVariantRepository;
     private final InventoryHelper inventoryHelper;
     private final InventoryItemRepository inventoryItemRepository;
+    private final TransactionService transactionService;
+    private final AccountService accountService;
 
     @Transactional(readOnly = true)
     @PreAuthorize("hasRole('ADMIN')")
@@ -101,6 +103,7 @@ public class PurchaseOrderService {
         purchaseOrder.setTotalAmount(totalAmount);
 
         purchaseOrder = purchaseOrderRepository.save(purchaseOrder);
+        transactionService.recordTransactionFromPurchaseOrder(purchaseOrder, principal);
 
         return modelMapper.map(purchaseOrder, PurchaseOrderDTO.class);
     }
@@ -179,6 +182,10 @@ public class PurchaseOrderService {
 
         if (newStatus == PurchaseOrderStatus.DELIVERED) {
             processDelivery(order);
+        }
+
+        if (newStatus == PurchaseOrderStatus.CANCELED) {
+            transactionService.removeTransactionLinkedToPurchaseOrder(order);
         }
 
         order.setStatus(newStatus);

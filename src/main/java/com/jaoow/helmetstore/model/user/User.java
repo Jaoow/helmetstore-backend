@@ -1,5 +1,6 @@
 package com.jaoow.helmetstore.model.user;
 
+import com.jaoow.helmetstore.model.balance.Account;
 import com.jaoow.helmetstore.model.inventory.Inventory;
 import jakarta.persistence.*;
 import lombok.*;
@@ -43,7 +44,15 @@ public class User {
     )
     private Set<Role> roles;
 
-    @OneToOne
+    @OneToOne(cascade = CascadeType.ALL, orphanRemoval = true)
     @JoinColumn(name = "inventory_id", referencedColumnName = "id")
     private Inventory inventory;
+
+    @OneToMany(
+            mappedBy = "user",
+            cascade = CascadeType.ALL,
+            orphanRemoval = true,
+            fetch = FetchType.LAZY
+    )
+    private Set<Account> accounts;
 }

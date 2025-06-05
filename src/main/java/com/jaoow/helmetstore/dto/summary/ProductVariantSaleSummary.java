@@ -1,7 +1,7 @@
 package com.jaoow.helmetstore.dto.summary;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 public interface ProductVariantSaleSummary {
     Long getProductId();
@@ -18,7 +18,7 @@ public interface ProductVariantSaleSummary {
 
     String getSize();
 
-    LocalDate getLastSaleDate();
+    LocalDateTime getLastSaleDate();
 
     Integer getTotalSold();
 

@@ -35,7 +35,7 @@ public class InventoryShareLinkController {
     }
 
     @PutMapping("/rename")
-    public Map<String, Object>  renameToken(@RequestBody @Valid ShareLinkCreateDTO request, Principal principal) {
+    public Map<String, Object> renameToken(@RequestBody @Valid ShareLinkCreateDTO request, Principal principal) {
         shareLinkService.renameToken(principal, request.getToken());
         return Map.of("success", true, "newToken", request.getToken());
     }

@@ -71,6 +71,7 @@ public class GlobalAdviceController {
 
     @ExceptionHandler({
             InsufficientStockException.class,
+            IllegalArgumentException.class,
             IllegalStateException.class
     })
     public ResponseEntity<ApiErrorResponse> handleBadRequestExceptions(RuntimeException ex, HttpServletRequest request) {

@@ -2,6 +2,7 @@ package com.jaoow.helmetstore.dto.summary;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 public interface ProductVariantSalesAndStockSummary {
 
@@ -31,7 +32,7 @@ public interface ProductVariantSalesAndStockSummary {
 
     Integer getFutureStock();
 
-    LocalDate getLastSaleDate();
+    LocalDateTime getLastSaleDate();
 
     Integer getTotalSold();
 
