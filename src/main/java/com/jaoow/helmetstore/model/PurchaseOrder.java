@@ -3,6 +3,7 @@ package com.jaoow.helmetstore.model;
 import com.jaoow.helmetstore.model.inventory.Inventory;
 import jakarta.persistence.*;
 import lombok.*;
+
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;

@@ -3,7 +3,7 @@ package com.jaoow.helmetstore.dto.sale;
 import lombok.*;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Getter
 @Setter
@@ -13,7 +13,7 @@ import java.time.LocalDate;
 public class SaleResponseDTO {
 
     private Long id;
-    private LocalDate date;
+    private LocalDateTime date;
     private Long productVariantId;
     private int quantity;
     private BigDecimal unitPrice;

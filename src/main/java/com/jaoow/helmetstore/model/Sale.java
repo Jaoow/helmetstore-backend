@@ -1,12 +1,12 @@
 package com.jaoow.helmetstore.model;
 
+import com.jaoow.helmetstore.model.balance.PaymentMethod;
 import com.jaoow.helmetstore.model.inventory.Inventory;
 import jakarta.persistence.*;
 import lombok.*;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
-
+import java.time.LocalDateTime;
 
 @Entity
 @Getter
@@ -19,8 +19,7 @@ public class Sale {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column
-    private LocalDate date;
+    private LocalDateTime date;
 
     @ManyToOne(fetch = FetchType.LAZY)
     private ProductVariant productVariant;
@@ -30,6 +29,8 @@ public class Sale {
     private BigDecimal unitPrice;
 
     private BigDecimal totalProfit;
+
+    private PaymentMethod paymentMethod;
 
     @ManyToOne(optional = false)
     private Inventory inventory;

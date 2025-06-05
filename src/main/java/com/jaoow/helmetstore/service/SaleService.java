@@ -11,9 +11,9 @@ import com.jaoow.helmetstore.exception.ProductNotFoundException;
 import com.jaoow.helmetstore.exception.ResourceNotFoundException;
 import com.jaoow.helmetstore.helper.InventoryHelper;
 import com.jaoow.helmetstore.model.ProductVariant;
+import com.jaoow.helmetstore.model.Sale;
 import com.jaoow.helmetstore.model.inventory.Inventory;
 import com.jaoow.helmetstore.model.inventory.InventoryItem;
-import com.jaoow.helmetstore.model.Sale;
 import com.jaoow.helmetstore.repository.InventoryItemRepository;
 import com.jaoow.helmetstore.repository.ProductVariantRepository;
 import com.jaoow.helmetstore.repository.SaleRepository;
@@ -40,6 +40,7 @@ public class SaleService {
     private final SaleRepository saleRepository;
     private final ProductVariantRepository productVariantRepository;
     private final InventoryItemRepository inventoryItemRepository;
+    private final TransactionService transactionService;
 
     @Transactional(readOnly = true)
     @PreAuthorize("hasRole('ADMIN')")
@@ -76,6 +77,8 @@ public class SaleService {
         inventoryItemRepository.save(item);
 
         sale = saleRepository.save(sale);
+        transactionService.recordTransactionFromSale(sale, principal); // must be called after sale is saved to ensure transaction ID is set
+
         return modelMapper.map(sale, SaleResponseDTO.class);
     }
 
@@ -154,6 +157,7 @@ public class SaleService {
         item.setQuantity(item.getQuantity() + sale.getQuantity());
         inventoryItemRepository.save(item);
 
+        transactionService.removeTransactionLinkedToSale(sale);
         saleRepository.delete(sale);
     }
 

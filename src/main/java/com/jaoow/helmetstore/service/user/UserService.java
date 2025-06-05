@@ -5,10 +5,11 @@ import com.jaoow.helmetstore.dto.user.UserRegisterRequest;
 import com.jaoow.helmetstore.dto.user.UserResponse;
 import com.jaoow.helmetstore.exception.EmailAlreadyInUseException;
 import com.jaoow.helmetstore.exception.ResourceNotFoundException;
+import com.jaoow.helmetstore.model.balance.Account;
+import com.jaoow.helmetstore.model.balance.AccountType;
 import com.jaoow.helmetstore.model.inventory.Inventory;
 import com.jaoow.helmetstore.model.user.Role;
 import com.jaoow.helmetstore.model.user.User;
-import com.jaoow.helmetstore.repository.InventoryRepository;
 import com.jaoow.helmetstore.repository.user.RoleRepository;
 import com.jaoow.helmetstore.repository.user.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -23,9 +24,12 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.security.Principal;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -36,7 +40,6 @@ public class UserService implements UserDetailsService {
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
-    private final InventoryRepository inventoryRepository;
 
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
@@ -76,11 +79,22 @@ public class UserService implements UserDetailsService {
         user.setEmail(userRegisterRequest.getEmail());
         user.setPassword(passwordEncoder.encode(userRegisterRequest.getPassword()));
 
-        Inventory inventory = inventoryRepository.save(new Inventory());
+        Inventory inventory = new Inventory();
         user.setInventory(inventory);
 
         Role role = findRoleByName("ROLE_USER");
         user.setRoles(new HashSet<>(Set.of(role)));
+
+        User finalUser = user;
+        Set<Account> accounts = Arrays.stream(AccountType.values())
+                .map(accountType -> Account.builder()
+                        .type(accountType)
+                        .balance(BigDecimal.ZERO)
+                        .user(finalUser)
+                        .build())
+                .collect(Collectors.toSet());
+
+        user.setAccounts(accounts);
 
         user = userRepository.save(user);
         return modelMapper.map(user, UserResponse.class);

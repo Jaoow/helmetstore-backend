@@ -1,8 +1,8 @@
-package com.jaoow.helmetstore.dto.sale;
+package com.jaoow.helmetstore.dto.balance;
 
 import com.jaoow.helmetstore.model.balance.PaymentMethod;
+import com.jaoow.helmetstore.model.balance.TransactionType;
 import jakarta.validation.constraints.DecimalMin;
-import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import lombok.*;
 
@@ -14,20 +14,23 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class SaleCreateDTO {
+public class TransactionCreateDTO {
 
     @NotNull
     private LocalDateTime date;
 
     @NotNull
-    private Long variantId;
+    private TransactionType type;
+
+    private String description;
+
+    @NotNull
+    @DecimalMin(value = "0.0", inclusive = false)
+    private BigDecimal amount;
 
     @NotNull
     private PaymentMethod paymentMethod;
 
-    @Min(1)
-    private int quantity;
+    private String reference;
 
-    @DecimalMin("0.0")
-    private BigDecimal unitPrice;
 }
