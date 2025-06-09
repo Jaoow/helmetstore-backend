@@ -22,7 +22,7 @@ public class ShareLinkUpdateDTO {
 
     private Boolean showWhatsappButton;
 
-    @Pattern(regexp = "^\\d{10,15}$", message = "O número do WhatsApp deve conter apenas dígitos (entre 10 e 15 caracteres).")
+    @Pattern(regexp = "^\\+55\\d{11}$", message = "O número do WhatsApp deve estar no formato +55DDDDDDDDDD, onde D é um dígito.")
     private String whatsappNumber;
 
     @Size(max = 300, message = "A mensagem do WhatsApp deve ter no máximo 300 caracteres.")
