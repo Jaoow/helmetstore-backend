@@ -44,7 +44,6 @@ public class PurchaseOrderService {
     private final InventoryHelper inventoryHelper;
     private final InventoryItemRepository inventoryItemRepository;
     private final TransactionService transactionService;
-    private final AccountService accountService;
 
     @Transactional(readOnly = true)
     @PreAuthorize("hasRole('ADMIN')")
@@ -211,9 +210,5 @@ public class PurchaseOrderService {
             inventoryItem.setQuantity(inventoryItem.getQuantity() + item.getQuantity());
             inventoryItemRepository.save(inventoryItem);
         }
-
-        productVariantRepository.saveAll(order.getItems().stream()
-                .map(PurchaseOrderItem::getProductVariant)
-                .collect(Collectors.toList()));
     }
 }

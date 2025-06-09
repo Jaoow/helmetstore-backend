@@ -5,14 +5,11 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 
-import java.math.BigDecimal;
-import java.time.LocalDate;
-
 @Data
 @EqualsAndHashCode(callSuper = true)
 @AllArgsConstructor
 @NoArgsConstructor
-public class ProductStockDto extends BaseProductStockDto<ProductStockVariantDto> {
-    private BigDecimal lastPurchasePrice;
-    private LocalDate lastPurchaseDate;
+public class ProductStockVariantDto extends BaseProductStockVariantDto {
+    private int incomingStock = 0;
+    private int futureStock = 0;
 }

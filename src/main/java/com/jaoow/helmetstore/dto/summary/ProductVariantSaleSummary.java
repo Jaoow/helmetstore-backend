@@ -18,6 +18,8 @@ public interface ProductVariantSaleSummary {
 
     String getSize();
 
+    BigDecimal getSalePrice();
+
     LocalDateTime getLastSaleDate();
 
     Integer getTotalSold();

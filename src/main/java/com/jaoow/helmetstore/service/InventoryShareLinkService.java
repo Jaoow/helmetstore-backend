@@ -1,7 +1,12 @@
 package com.jaoow.helmetstore.service;
 
+import com.jaoow.helmetstore.dto.info.BaseProductStockVariantDto;
 import com.jaoow.helmetstore.dto.info.PublicProductStockDto;
-import com.jaoow.helmetstore.dto.inventory.InventoryShareLinkDTO;
+import com.jaoow.helmetstore.dto.info.PublicProductStockVariantDto;
+import com.jaoow.helmetstore.dto.inventory.ShareLinkDTO;
+import com.jaoow.helmetstore.dto.inventory.ShareLinkCreateDTO;
+import com.jaoow.helmetstore.dto.inventory.ShareLinkStoreViewDTO;
+import com.jaoow.helmetstore.dto.inventory.ShareLinkUpdateDTO;
 import com.jaoow.helmetstore.dto.summary.ProductVariantStockSummary;
 import com.jaoow.helmetstore.exception.ShareLinkNotFoundException;
 import com.jaoow.helmetstore.exception.TokenAlreadyInUseException;
@@ -30,10 +35,25 @@ public class InventoryShareLinkService {
     private final InventoryShareLinkRepository linkRepository;
     private final InventoryItemRepository inventoryItemRepository;
 
-    public List<PublicProductStockDto> getProductStockByToken(String token) {
-        InventoryShareLink link = linkRepository.findByTokenAndActiveTrue(token)
+
+    @Transactional(readOnly = true)
+    public ShareLinkStoreViewDTO getShareLinkStoreView(String token) {
+        InventoryShareLink shareLink = linkRepository.findByTokenAndActiveTrue(token)
                 .orElseThrow(ShareLinkNotFoundException::new);
 
+        ShareLinkStoreViewDTO storeViewDTO = modelMapper.map(shareLink, ShareLinkStoreViewDTO.class);
+        storeViewDTO.setProducts(getPublicProductStockDtos(shareLink));
+
+        if (!shareLink.isShowWhatsappButton()) {
+            // prevent from showing WhatsApp details if the button is not enabled
+            storeViewDTO.setWhatsappNumber(null);
+            storeViewDTO.setWhatsappMessage(null);
+        }
+
+        return storeViewDTO;
+    }
+
+    private ArrayList<PublicProductStockDto> getPublicProductStockDtos(InventoryShareLink link) {
         Inventory inventory = link.getInventory();
         List<ProductVariantStockSummary> projections = inventoryItemRepository
                 .findAllWithStockDetailsByInventory(EXCLUDED_STATUSES, inventory);
@@ -50,8 +70,6 @@ public class InventoryShareLinkService {
         }
 
         if (!link.isShowStockQuantity()) {
-            // If hide the stock quantity is enabled, remove the stock information and show only the variants
-            // with stock > 0
             hideStockQuantities(productMap);
         }
 
@@ -66,7 +84,7 @@ public class InventoryShareLinkService {
             PublicProductStockDto product = entry.getValue();
 
             product.getVariants().removeIf(variant -> variant.getCurrentStock() == 0);
-            for (PublicProductStockDto.PublicProductStockVariantDto variant : product.getVariants()) {
+            for (BaseProductStockVariantDto variant : product.getVariants()) {
                 variant.setCurrentStock(null);
             }
 
@@ -80,13 +98,13 @@ public class InventoryShareLinkService {
         return modelMapper.map(projection, PublicProductStockDto.class);
     }
 
-    private PublicProductStockDto.PublicProductStockVariantDto mapToPublicProductStockVariantDto(ProductVariantStockSummary projection) {
-        return modelMapper.map(projection, PublicProductStockDto.PublicProductStockVariantDto.class);
+    private PublicProductStockVariantDto mapToPublicProductStockVariantDto(ProductVariantStockSummary projection) {
+        return modelMapper.map(projection, PublicProductStockVariantDto.class);
     }
 
     @Transactional
-    public InventoryShareLinkDTO createShareLink(Principal principal, String customToken) {
-        if (linkRepository.existsByToken(customToken)) {
+    public ShareLinkDTO createShareLink(Principal principal, ShareLinkCreateDTO dto) {
+        if (linkRepository.existsByToken(dto.getToken())) {
             throw new TokenAlreadyInUseException();
         }
 
@@ -98,56 +116,66 @@ public class InventoryShareLinkService {
 
         InventoryShareLink link = InventoryShareLink.builder()
                 .inventory(inventory)
-                .token(customToken)
+                .token(dto.getToken())
+                .storeName(dto.getStoreName())
                 .createdAt(LocalDateTime.now())
                 .active(true)
                 .build();
 
         link = linkRepository.save(link);
-        return modelMapper.map(link, InventoryShareLinkDTO.class);
+        return modelMapper.map(link, ShareLinkDTO.class);
     }
 
     @Transactional
-    public void toggleShowStock(Principal principal, boolean showStock) {
+    public ShareLinkDTO updateShareLink(Principal principal, ShareLinkUpdateDTO dto) {
         Inventory inventory = inventoryHelper.getInventoryFromPrincipal(principal);
 
         InventoryShareLink link = linkRepository.findByInventory(inventory)
                 .orElseThrow(ShareLinkNotFoundException::new);
 
-        link.setShowStockQuantity(showStock);
-        linkRepository.save(link);
-    }
-
-    @Transactional
-    public void toggleActivation(Principal principal, boolean activate) {
-        Inventory inventory = inventoryHelper.getInventoryFromPrincipal(principal);
-
-        InventoryShareLink link = linkRepository.findByInventory(inventory)
-                .orElseThrow(ShareLinkNotFoundException::new);
-
-        link.setActive(activate);
-        linkRepository.save(link);
-    }
-
-    @Transactional
-    public void renameToken(Principal principal, String newToken) {
-        if (linkRepository.existsByToken(newToken)) {
-            throw new TokenAlreadyInUseException();
+        if (dto.getToken() != null && !dto.getToken().equals(link.getToken())) {
+            if (linkRepository.existsByToken(dto.getToken())) {
+                throw new TokenAlreadyInUseException();
+            }
+            link.setToken(dto.getToken());
         }
 
-        Inventory inventory = inventoryHelper.getInventoryFromPrincipal(principal);
+        if (dto.getStoreName() != null) {
+            link.setStoreName(dto.getStoreName());
+        }
 
-        InventoryShareLink link = linkRepository.findByInventory(inventory)
-                .orElseThrow(ShareLinkNotFoundException::new);
+        if (dto.getActive() != null) {
+            link.setActive(dto.getActive());
+        }
 
-        link.setToken(newToken);
+        if (dto.getShowStockQuantity() != null) {
+            link.setShowStockQuantity(dto.getShowStockQuantity());
+        }
+
+        if (dto.getShowPrice() != null) {
+            link.setShowPrice(dto.getShowPrice());
+        }
+
+        if (dto.getShowWhatsappButton() != null) {
+            link.setShowWhatsappButton(dto.getShowWhatsappButton());
+        }
+
+        if (dto.getWhatsappNumber() != null) {
+            link.setWhatsappNumber(dto.getWhatsappNumber());
+        }
+
+        if (dto.getWhatsappMessage() != null) {
+            link.setWhatsappMessage(dto.getWhatsappMessage());
+        }
+
         linkRepository.save(link);
+        return modelMapper.map(link, ShareLinkDTO.class);
     }
 
-    public InventoryShareLinkDTO getByUser(Principal principal) {
+    public ShareLinkDTO getByUser(Principal principal) {
         Inventory inventory = inventoryHelper.getInventoryFromPrincipal(principal);
         return linkRepository.findByInventory(inventory)
-                .map(link -> modelMapper.map(link, InventoryShareLinkDTO.class))
+                .map(link -> modelMapper.map(link, ShareLinkDTO.class))
                 .orElseThrow(ShareLinkNotFoundException::new);
     }
 }
