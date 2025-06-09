@@ -1,0 +1,30 @@
+package com.jaoow.helmetstore.dto.inventory;
+
+import jakarta.validation.constraints.*;
+
+import lombok.Data;
+
+@Data
+public class ShareLinkUpdateDTO {
+
+    @Size(min = 1, max = 100, message = "O nome da loja deve ter no máximo 100 caracteres.")
+    @Pattern(regexp = ".*(?:[a-zA-Z].*){4,}", message = "O nome da loja deve conter pelo menos 4 letras.")
+    private String storeName;
+
+    @Pattern(regexp = "^[a-zA-Z0-9_-]{4,50}$", message = "O token deve conter entre 4 e 50 caracteres alfanuméricos, hífens ou underscores.")
+    private String token;
+
+    private Boolean active;
+
+    private Boolean showStockQuantity;
+
+    private Boolean showPrice;
+
+    private Boolean showWhatsappButton;
+
+    @Pattern(regexp = "^\\d{10,15}$", message = "O número do WhatsApp deve conter apenas dígitos (entre 10 e 15 caracteres).")
+    private String whatsappNumber;
+
+    @Size(max = 300, message = "A mensagem do WhatsApp deve ter no máximo 300 caracteres.")
+    private String whatsappMessage;
+}

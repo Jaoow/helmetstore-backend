@@ -3,6 +3,7 @@ package com.jaoow.helmetstore.service;
 import com.jaoow.helmetstore.cache.CacheNames;
 import com.jaoow.helmetstore.dto.FinancialSummaryDTO;
 import com.jaoow.helmetstore.dto.info.ProductStockDto;
+import com.jaoow.helmetstore.dto.info.ProductStockVariantDto;
 import com.jaoow.helmetstore.dto.summary.ProductVariantSaleSummary;
 import com.jaoow.helmetstore.dto.summary.ProductVariantSalesAndStockSummary;
 import com.jaoow.helmetstore.dto.summary.ProductVariantStockSummary;
@@ -75,8 +76,8 @@ public class ReportService {
         return modelMapper.map(projection, ProductStockDto.class);
     }
 
-    private ProductStockDto.ProductStockVariantDto mapToProductStockVariantDto(ProductVariantStockSummary projection) {
-        return modelMapper.map(projection, ProductStockDto.ProductStockVariantDto.class);
+    private ProductStockVariantDto mapToProductStockVariantDto(ProductVariantStockSummary projection) {
+        return modelMapper.map(projection, ProductStockVariantDto.class);
     }
 
     @Cacheable(value = CacheNames.REVENUE_AND_PROFIT, key = "#principal.name")
