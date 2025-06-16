@@ -1,7 +1,9 @@
 package com.jaoow.helmetstore.security;
 
+import com.jaoow.helmetstore.config.CookieProperties;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -21,10 +23,12 @@ public class JwtRequestFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
     private final HandlerExceptionResolver handlerExceptionResolver;
+    private final CookieProperties cookieProperties;
 
-    public JwtRequestFilter(JwtService jwtService, HandlerExceptionResolver handlerExceptionResolver) {
+    public JwtRequestFilter(JwtService jwtService, HandlerExceptionResolver handlerExceptionResolver, CookieProperties cookieProperties) {
         this.jwtService = jwtService;
         this.handlerExceptionResolver = handlerExceptionResolver;
+        this.cookieProperties = cookieProperties;
     }
 
     @Override
@@ -61,6 +65,16 @@ public class JwtRequestFilter extends OncePerRequestFilter {
         String bearerToken = request.getHeader("Authorization");
         if (bearerToken != null && bearerToken.startsWith("Bearer ")) {
             return bearerToken.substring(7);
+        }
+        return extractCookie(request, cookieProperties.getAccessName());
+    }
+
+    private String extractCookie(HttpServletRequest request, String name) {
+        if (request.getCookies() == null) return null;
+        for (Cookie c : request.getCookies()) {
+            if (name.equals(c.getName())) {
+                return c.getValue();
+            }
         }
         return null;
     }
