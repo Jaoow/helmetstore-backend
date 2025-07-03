@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.modelmapper.ModelMapper;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,7 +45,13 @@ public class ProductService {
 
     @Transactional
     @PreAuthorize("hasRole('ADMIN')")
-    @CacheEvict(value = CacheNames.PRODUCT, allEntries = true)
+    @Caching(
+        evict = {
+            @CacheEvict(value = CacheNames.PRODUCT, allEntries = true),
+            @CacheEvict(value = CacheNames.PRODUCT_INDICATORS, allEntries = true),
+            @CacheEvict(value = CacheNames.PRODUCT_STOCK, allEntries = true)
+        }
+    )
     public ProductDto save(ProductCreateDTO productDTO) {
         Product product = modelMapper.map(productDTO, Product.class);
 
