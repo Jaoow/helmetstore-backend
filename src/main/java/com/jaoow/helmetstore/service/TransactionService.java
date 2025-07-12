@@ -14,6 +14,7 @@ import com.jaoow.helmetstore.model.balance.TransactionType;
 import com.jaoow.helmetstore.repository.TransactionRepository;
 import lombok.RequiredArgsConstructor;
 import org.modelmapper.ModelMapper;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,6 +33,7 @@ public class TransactionService {
     private final TransactionRepository transactionRepository;
     private final AccountService accountService;
     private final ModelMapper modelMapper;
+    private final CacheInvalidationService cacheInvalidationService;
 
     @Transactional
     public void createManualTransaction(TransactionCreateDTO dto, Principal principal) {
@@ -42,6 +44,9 @@ public class TransactionService {
         transaction.setAccount(account);
         accountService.applyTransaction(account, transaction);
         transactionRepository.save(transaction);
+        
+        // Invalidate financial caches after creating a transaction
+        cacheInvalidationService.invalidateFinancialCaches();
     }
 
     @Transactional
@@ -66,6 +71,9 @@ public class TransactionService {
 
         accountService.applyTransaction(account, transaction);
         transactionRepository.save(transaction);
+        
+        // Invalidate financial caches after recording transaction from sale
+        cacheInvalidationService.invalidateFinancialCaches();
     }
 
     @Transactional
@@ -88,6 +96,9 @@ public class TransactionService {
 
         accountService.applyTransaction(account, transaction); // maybe should be before save?
         transactionRepository.save(transaction);
+        
+        // Invalidate financial caches after recording transaction from purchase order
+        cacheInvalidationService.invalidateFinancialCaches();
     }
 
     @Transactional
@@ -105,6 +116,9 @@ public class TransactionService {
         accountService.applyTransaction(account, transaction);
 
         transactionRepository.save(transaction);
+        
+        // Invalidate financial caches after updating a transaction
+        cacheInvalidationService.invalidateFinancialCaches();
     }
 
     @Transactional
@@ -118,6 +132,8 @@ public class TransactionService {
 
         accountService.revertTransaction(transaction.getAccount(), transaction);
         transactionRepository.delete(transaction);
+        // Invalidate financial caches after deleting a transaction
+        cacheInvalidationService.invalidateFinancialCaches();
     }
 
     @Transactional
@@ -128,6 +144,8 @@ public class TransactionService {
 
         accountService.revertTransaction(transaction.getAccount(), transaction);
         transactionRepository.delete(transaction);
+        // Invalidate financial caches after removing transaction linked to purchase order
+        cacheInvalidationService.invalidateFinancialCaches();
     }
 
     @Transactional
@@ -138,12 +156,15 @@ public class TransactionService {
 
         accountService.revertTransaction(transaction.getAccount(), transaction);
         transactionRepository.delete(transaction);
+        // Invalidate financial caches after removing transaction linked to sale
+        cacheInvalidationService.invalidateFinancialCaches();
     }
 
     /**
      * Calculate profit using the formula:
      * profit = sum(SALE) - sum(all transactions where deductsFromProfit = true)
      */
+    @Cacheable(value = com.jaoow.helmetstore.cache.CacheNames.PROFIT_CALCULATION, key = "#principal.name")
     public BigDecimal calculateProfit(Principal principal) {
         List<Transaction> transactions = transactionRepository.findByAccountUserEmail(principal.getName());
         
@@ -163,6 +184,7 @@ public class TransactionService {
     /**
      * Calculate total cash flow (all income minus all expenses)
      */
+    @Cacheable(value = com.jaoow.helmetstore.cache.CacheNames.CASH_FLOW_CALCULATION, key = "#principal.name")
     public BigDecimal calculateCashFlow(Principal principal) {
         List<Transaction> transactions = transactionRepository.findByAccountUserEmail(principal.getName());
         
@@ -182,6 +204,7 @@ public class TransactionService {
     /**
      * Get financial summary with both profit and cash flow
      */
+    @Cacheable(value = com.jaoow.helmetstore.cache.CacheNames.FINANCIAL_SUMMARY, key = "#principal.name")
     public FinancialSummary calculateFinancialSummary(Principal principal) {
         BigDecimal profit = calculateProfit(principal);
         BigDecimal cashFlow = calculateCashFlow(principal);

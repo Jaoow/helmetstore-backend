@@ -10,6 +10,13 @@ public class CacheNames {
     public static final String PURCHASE_ORDER_HISTORY = "purchaseOrderHistory";
 
     public static final String PRODUCT = "product";
+    
+    // Cash Flow Cache Names
+    public static final String CASH_FLOW_SUMMARY = "cashFlowSummary";
+    public static final String MONTHLY_CASH_FLOW = "monthlyCashFlow";
+    public static final String FINANCIAL_SUMMARY = "financialSummary";
+    public static final String PROFIT_CALCULATION = "profitCalculation";
+    public static final String CASH_FLOW_CALCULATION = "cashFlowCalculation";
 
     public static final String[] ALL_CACHE_NAMES = {
             PRODUCT_INDICATORS,
@@ -18,6 +25,11 @@ public class CacheNames {
             REVENUE_AND_PROFIT,
             SALES_HISTORY,
             PURCHASE_ORDER_HISTORY,
-            PRODUCT
+            PRODUCT,
+            CASH_FLOW_SUMMARY,
+            MONTHLY_CASH_FLOW,
+            FINANCIAL_SUMMARY,
+            PROFIT_CALCULATION,
+            CASH_FLOW_CALCULATION
     };
 }

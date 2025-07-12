@@ -11,6 +11,7 @@ import com.jaoow.helmetstore.repository.AccountRepository;
 import com.jaoow.helmetstore.repository.TransactionRepository;
 import lombok.RequiredArgsConstructor;
 import org.modelmapper.ModelMapper;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -33,6 +34,7 @@ public class CashFlowService {
     /**
      * Get comprehensive cash flow summary with monthly breakdown
      */
+    @Cacheable(value = com.jaoow.helmetstore.cache.CacheNames.CASH_FLOW_SUMMARY, key = "#principal.name")
     public CashFlowSummaryDTO getCashFlowSummary(Principal principal) {
         String userEmail = principal.getName();
         
@@ -76,6 +78,7 @@ public class CashFlowService {
     /**
      * Get monthly cash flow breakdown with cumulative balances
      */
+    @Cacheable(value = com.jaoow.helmetstore.cache.CacheNames.MONTHLY_CASH_FLOW, key = "#userEmail")
     public List<MonthlyCashFlowDTO> getMonthlyCashFlowBreakdown(String userEmail) {
         List<Object[]> distinctMonths = transactionRepository.findDistinctMonthsByUserEmail(userEmail);
         
@@ -120,6 +123,7 @@ public class CashFlowService {
     /**
      * Get cash flow for a specific month with cumulative balance calculation
      */
+    @Cacheable(value = com.jaoow.helmetstore.cache.CacheNames.MONTHLY_CASH_FLOW, key = "#userEmail + '-' + #yearMonth")
     public MonthlyCashFlowDTO getMonthlyCashFlow(String userEmail, YearMonth yearMonth) {
         LocalDateTime startOfMonth = yearMonth.atDay(1).atStartOfDay();
         LocalDateTime startOfNextMonth = yearMonth.plusMonths(1).atDay(1).atStartOfDay();
@@ -185,32 +189,6 @@ public class CashFlowService {
     }
 
     /**
-     * Calculate cumulative balance up to the end of a specific month
-     */
-    private BigDecimal calculateCumulativeBalanceUpToMonth(String userEmail, YearMonth targetMonth) {
-        // Get all transactions up to the end of the target month
-        LocalDateTime endOfTargetMonth = targetMonth.atEndOfMonth().atTime(23, 59, 59);
-        
-        List<Transaction> transactionsUpToMonth = transactionRepository
-                .findByAccountUserEmailAndDateRange(userEmail, 
-                        LocalDateTime.of(1900, 1, 1, 0, 0), // Start from beginning
-                        endOfTargetMonth.plusSeconds(1)); // Include the entire target month
-        
-        // Calculate cumulative balance
-        BigDecimal cumulativeBalance = transactionsUpToMonth.stream()
-                .map(transaction -> {
-                    if (transaction.getType() == TransactionType.INCOME) {
-                        return transaction.getAmount();
-                    } else {
-                        return transaction.getAmount().negate();
-                    }
-                })
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        
-        return cumulativeBalance;
-    }
-
-    /**
      * Calculate cumulative bank and cash balances up to the end of a specific month
      */
     private Map<String, BigDecimal> calculateCumulativeAccountBalancesUpToMonth(String userEmail, YearMonth targetMonth) {
@@ -244,23 +222,6 @@ public class CashFlowService {
         return Map.of(
                 "bank", cumulativeBankBalance,
                 "cash", cumulativeCashBalance
-        );
-    }
-
-    /**
-     * Get account balances at a specific date (simplified for current implementation)
-     */
-    private Map<AccountType, BigDecimal> getAccountBalancesAtDate(String userEmail, LocalDateTime date) {
-        // This is a simplified implementation
-        // In a real system, you might want to calculate running balances
-        BigDecimal bankBalance = accountRepository.findBalanceByUserEmailAndType(userEmail, AccountType.BANK)
-                .orElse(BigDecimal.ZERO);
-        BigDecimal cashBalance = accountRepository.findBalanceByUserEmailAndType(userEmail, AccountType.CASH)
-                .orElse(BigDecimal.ZERO);
-        
-        return Map.of(
-                AccountType.BANK, bankBalance,
-                AccountType.CASH, cashBalance
         );
     }
 
