@@ -24,6 +24,10 @@ public class Transaction {
     @Column(nullable = false)
     private TransactionType type;  // INCOME ou EXPENSE
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private TransactionDetail detail;  // Specific transaction type (SALE, RENT, etc.)
+
     private String description;    // Ex: "Venda #123", "Retirada Pró-labore"
 
     @Column(nullable = false)

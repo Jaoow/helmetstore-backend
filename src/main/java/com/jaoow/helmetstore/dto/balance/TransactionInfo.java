@@ -1,6 +1,7 @@
 package com.jaoow.helmetstore.dto.balance;
 
 import com.jaoow.helmetstore.model.balance.PaymentMethod;
+import com.jaoow.helmetstore.model.balance.TransactionDetail;
 import com.jaoow.helmetstore.model.balance.TransactionType;
 
 import java.math.BigDecimal;
@@ -21,6 +22,8 @@ public interface TransactionInfo {
     PaymentMethod getPaymentMethod();
 
     TransactionType getType();
+
+    TransactionDetail getDetail();
 
     String getReference();
 }

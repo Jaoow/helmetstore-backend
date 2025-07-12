@@ -9,6 +9,7 @@ import com.jaoow.helmetstore.model.Sale;
 import com.jaoow.helmetstore.model.balance.Account;
 import com.jaoow.helmetstore.model.balance.PaymentMethod;
 import com.jaoow.helmetstore.model.balance.Transaction;
+import com.jaoow.helmetstore.model.balance.TransactionDetail;
 import com.jaoow.helmetstore.model.balance.TransactionType;
 import com.jaoow.helmetstore.repository.TransactionRepository;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.security.Principal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -54,6 +56,7 @@ public class TransactionService {
         Transaction transaction = Transaction.builder()
                 .date(date)
                 .type(TransactionType.INCOME)
+                .detail(TransactionDetail.SALE)
                 .description(SALE_REFERENCE_PREFIX + formatProductVariantName(sale.getProductVariant()))
                 .amount(totalAmount)
                 .paymentMethod(sale.getPaymentMethod())
@@ -75,6 +78,7 @@ public class TransactionService {
         Transaction transaction = Transaction.builder()
                 .date(LocalDateTime.now())
                 .type(TransactionType.EXPENSE)
+                .detail(TransactionDetail.PRODUCT_PURCHASE)
                 .description(PURCHASE_ORDER_REFERENCE_PREFIX + purchaseOrder.getOrderNumber())
                 .amount(purchaseOrder.getTotalAmount())
                 .paymentMethod(PaymentMethod.PIX)
@@ -136,8 +140,70 @@ public class TransactionService {
         transactionRepository.delete(transaction);
     }
 
+    /**
+     * Calculate profit using the formula:
+     * profit = sum(SALE) - sum(all transactions where deductsFromProfit = true)
+     */
+    public BigDecimal calculateProfit(Principal principal) {
+        List<Transaction> transactions = transactionRepository.findByAccountUserEmail(principal.getName());
+        
+        BigDecimal salesTotal = transactions.stream()
+                .filter(t -> t.getDetail() == TransactionDetail.SALE)
+                .map(Transaction::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        
+        BigDecimal expensesTotal = transactions.stream()
+                .filter(t -> t.getDetail().deductsFromProfit())
+                .map(Transaction::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        
+        return salesTotal.subtract(expensesTotal);
+    }
+
+    /**
+     * Calculate total cash flow (all income minus all expenses)
+     */
+    public BigDecimal calculateCashFlow(Principal principal) {
+        List<Transaction> transactions = transactionRepository.findByAccountUserEmail(principal.getName());
+        
+        BigDecimal incomeTotal = transactions.stream()
+                .filter(t -> t.getType() == TransactionType.INCOME)
+                .map(Transaction::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        
+        BigDecimal expenseTotal = transactions.stream()
+                .filter(t -> t.getType() == TransactionType.EXPENSE)
+                .map(Transaction::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        
+        return incomeTotal.subtract(expenseTotal);
+    }
+
+    /**
+     * Get financial summary with both profit and cash flow
+     */
+    public FinancialSummary calculateFinancialSummary(Principal principal) {
+        BigDecimal profit = calculateProfit(principal);
+        BigDecimal cashFlow = calculateCashFlow(principal);
+        
+        return FinancialSummary.builder()
+                .profit(profit)
+                .cashFlow(cashFlow)
+                .build();
+    }
+
     private String formatProductVariantName(ProductVariant productVariant) {
         Product product = productVariant.getProduct();
         return "%s#%s#%s".formatted(product.getModel(), product.getColor(), productVariant.getSize());
+    }
+
+    /**
+     * Financial summary data class
+     */
+    @lombok.Data
+    @lombok.Builder
+    public static class FinancialSummary {
+        private BigDecimal profit;
+        private BigDecimal cashFlow;
     }
 }

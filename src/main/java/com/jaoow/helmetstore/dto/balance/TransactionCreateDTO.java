@@ -1,6 +1,7 @@
 package com.jaoow.helmetstore.dto.balance;
 
 import com.jaoow.helmetstore.model.balance.PaymentMethod;
+import com.jaoow.helmetstore.model.balance.TransactionDetail;
 import com.jaoow.helmetstore.model.balance.TransactionType;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotNull;
@@ -21,6 +22,9 @@ public class TransactionCreateDTO {
 
     @NotNull
     private TransactionType type;
+
+    @NotNull
+    private TransactionDetail detail;
 
     private String description;
 
