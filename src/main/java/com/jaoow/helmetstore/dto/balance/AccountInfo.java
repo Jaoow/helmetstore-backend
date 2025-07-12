@@ -1,19 +1,24 @@
 package com.jaoow.helmetstore.dto.balance;
 
 import com.jaoow.helmetstore.model.balance.AccountType;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.util.List;
 
 /**
- * Projection for {@link com.jaoow.helmetstore.model.balance.Account}
+ * DTO for {@link com.jaoow.helmetstore.model.balance.Account}
  */
-public interface AccountInfo {
-    Long getId();
-
-    AccountType getType();
-
-    BigDecimal getBalance();
-
-    List<TransactionInfo> getTransactions();
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class AccountInfo {
+    private Long id;
+    private AccountType type;
+    private BigDecimal balance;
+    private List<TransactionInfo> transactions;
 }
