@@ -29,6 +29,10 @@ public class CacheInvalidationService {
         invalidateCache(CacheNames.PROFIT_CALCULATION);
         invalidateCache(CacheNames.CASH_FLOW_CALCULATION);
         
+        // Invalidate profit tracking related caches
+        invalidateCache(CacheNames.PROFIT_SUMMARY);
+        invalidateCache(CacheNames.MONTHLY_PROFIT);
+        
         // Also invalidate revenue and profit cache as it might be affected
         invalidateCache(CacheNames.REVENUE_AND_PROFIT);
     }

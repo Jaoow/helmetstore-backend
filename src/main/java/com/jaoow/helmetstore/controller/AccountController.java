@@ -3,9 +3,12 @@ package com.jaoow.helmetstore.controller;
 import com.jaoow.helmetstore.dto.balance.AccountInfo;
 import com.jaoow.helmetstore.dto.balance.CashFlowSummaryDTO;
 import com.jaoow.helmetstore.dto.balance.MonthlyCashFlowDTO;
+import com.jaoow.helmetstore.dto.balance.MonthlyProfitDTO;
+import com.jaoow.helmetstore.dto.balance.ProfitSummaryDTO;
 import com.jaoow.helmetstore.dto.balance.TransactionCreateDTO;
 import com.jaoow.helmetstore.service.AccountService;
 import com.jaoow.helmetstore.service.CashFlowService;
+import com.jaoow.helmetstore.service.ProfitTrackingService;
 import com.jaoow.helmetstore.service.TransactionService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +27,7 @@ public class AccountController {
     private final AccountService accountService;
     private final TransactionService transactionService;
     private final CashFlowService cashFlowService;
+    private final ProfitTrackingService profitTrackingService;
 
     @GetMapping
     public List<AccountInfo> getAccountInfo(Principal principal) {
@@ -71,6 +75,34 @@ public class AccountController {
             Principal principal) {
         YearMonth yearMonth = YearMonth.of(year, month);
         return cashFlowService.getMonthlyCashFlow(principal.getName(), yearMonth);
+    }
+
+    /**
+     * Get comprehensive profit summary with monthly breakdown
+     */
+    @GetMapping("/profit-summary")
+    public ProfitSummaryDTO getProfitSummary(Principal principal) {
+        return profitTrackingService.getProfitSummary(principal);
+    }
+
+    /**
+     * Get monthly profit breakdown
+     */
+    @GetMapping("/profit/monthly")
+    public List<MonthlyProfitDTO> getMonthlyProfitBreakdown(Principal principal) {
+        return profitTrackingService.getMonthlyProfitBreakdown(principal);
+    }
+
+    /**
+     * Get profit for a specific month
+     */
+    @GetMapping("/profit/monthly/{year}/{month}")
+    public MonthlyProfitDTO getMonthlyProfit(
+            @PathVariable int year,
+            @PathVariable int month,
+            Principal principal) {
+        YearMonth yearMonth = YearMonth.of(year, month);
+        return profitTrackingService.getMonthlyProfit(principal, yearMonth);
     }
 
     @PostMapping("/transaction")
