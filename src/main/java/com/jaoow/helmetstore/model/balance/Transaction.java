@@ -18,24 +18,35 @@ public class Transaction {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private LocalDateTime date;    // Data e hora da transação
+    private LocalDateTime date;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private TransactionType type;  // INCOME ou EXPENSE
+    private TransactionType type;
 
-    private String description;    // Ex: "Venda #123", "Retirada Pró-labore"
+    @Enumerated(EnumType.STRING)
+    @Column
+    private TransactionDetail detail;
+
+    private String description;
 
     @Column(nullable = false)
-    private BigDecimal amount;     // Valor que entra ou sai
+    private BigDecimal amount;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private PaymentMethod paymentMethod; // Forma de pagamento: CASH, PIX, CARD
+    private PaymentMethod paymentMethod;
 
-    private String reference;      // Ex: "SALE#123", "ORDER#45", "RETIRADA#20250601"
+    private String reference;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "account_id", nullable = false)
     private Account account;
+
+    public boolean affectsWithdrawableProfit() {
+        if (type == TransactionType.EXPENSE) {
+            return detail != TransactionDetail.COST_OF_GOODS_SOLD;
+        }
+        return  false;
+    }
 }

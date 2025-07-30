@@ -10,12 +10,14 @@ import com.jaoow.helmetstore.repository.AccountRepository;
 import com.jaoow.helmetstore.service.user.UserService;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
+import org.modelmapper.ModelMapper;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.security.Principal;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -23,9 +25,13 @@ public class AccountService {
 
     private final AccountRepository accountRepository;
     private final UserService userService;
+    private final ModelMapper modelMapper;
 
     public List<AccountInfo> getAccountInfo(Principal principal) {
-        return accountRepository.findByUserEmailWithTransactions(principal.getName());
+        List<Account> accounts = accountRepository.findAllByUserEmail(principal.getName());
+        return accounts.stream()
+                .map(account -> modelMapper.map(account, AccountInfo.class))
+                .collect(Collectors.toList());
     }
 
     Optional<Account> findAccountByPaymentMethodAndUser(PaymentMethod paymentMethod, Principal principal) {
