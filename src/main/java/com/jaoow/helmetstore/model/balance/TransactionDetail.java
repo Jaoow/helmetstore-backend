@@ -14,13 +14,13 @@ public enum TransactionDetail {
     PROFIT_WITHDRAWAL(true), // Deducts from profit - owner taking money out
     OTHER(true); // Default for other expenses
 
-    private final boolean deductsFromProfit;
+    private final boolean affectsWithdrawableProfit;
 
-    TransactionDetail(boolean deductsFromProfit) {
-        this.deductsFromProfit = deductsFromProfit;
+    TransactionDetail(boolean affectsWithdrawableProfit) {
+        this.affectsWithdrawableProfit = affectsWithdrawableProfit;
     }
 
-    public boolean deductsFromProfit() {
-        return deductsFromProfit;
+    public boolean affectsWithdrawableProfit() {
+        return affectsWithdrawableProfit;
     }
 }

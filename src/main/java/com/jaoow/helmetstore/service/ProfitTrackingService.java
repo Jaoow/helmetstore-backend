@@ -54,7 +54,7 @@ public class ProfitTrackingService {
         .orElse(BigDecimal.ZERO);
 
     BigDecimal totalProfitDeductingTransactions = allTransactions.stream()
-        .filter(t -> t.getDetail().deductsFromProfit())
+        .filter(t -> t.getDetail().affectsWithdrawableProfit())
         .map(Transaction::getAmount)
         .reduce(BigDecimal.ZERO, BigDecimal::add);
 
@@ -136,12 +136,12 @@ public class ProfitTrackingService {
         startOfNextMonth);
 
     BigDecimal monthlyProfitDeductingTransactions = monthlyTransactions.stream()
-        .filter(t -> t.getDetail().deductsFromProfit())
+        .filter(t -> t.getDetail().affectsWithdrawableProfit())
         .map(Transaction::getAmount)
         .reduce(BigDecimal.ZERO, BigDecimal::add);
 
     List<Transaction> profitDeductingTransactions = monthlyTransactions.stream()
-        .filter(t -> t.getDetail().deductsFromProfit())
+        .filter(t -> t.getDetail().affectsWithdrawableProfit())
         .collect(Collectors.toList());
 
     Map<String, BigDecimal> accountBalances = calculateMonthlyAccountBalances(monthlyTransactions);

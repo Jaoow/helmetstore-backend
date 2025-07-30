@@ -174,7 +174,7 @@ public class TransactionService {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         
         BigDecimal expensesTotal = transactions.stream()
-                .filter(t -> t.getDetail().deductsFromProfit())
+                .filter(t -> t.getDetail().affectsWithdrawableProfit())
                 .map(Transaction::getAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         
