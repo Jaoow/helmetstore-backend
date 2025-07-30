@@ -1,26 +1,43 @@
 package com.jaoow.helmetstore.model.balance;
 
 public enum TransactionDetail {
-    // Income transactions
-    SALE(false), // Adds to profit
-    OWNER_INVESTMENT(false), // Adds cash but doesn't affect profit
-    MONEY_INVESTMENT(false), // Investment - doesn't affect profit
+    // === INCOME (ENTRADAS) ===
 
-    // Expense transactions
-    PRODUCT_PURCHASE(false), // Stock purchase - doesn't affect profit directly
-    RENT(true), // Deducts from profit
-    ELECTRICITY(true), // Deducts from profit
-    MACHINE_PURCHASE(true), // Deducts from profit
-    PROFIT_WITHDRAWAL(true), // Deducts from profit - owner taking money out
-    OTHER(true); // Default for other expenses
+    /** Receita de venda de produtos ou serviços */
+    SALE,
 
-    private final boolean affectsWithdrawableProfit;
+    /** Aporte dos sócios (não entra como lucro) */
+    OWNER_INVESTMENT,
 
-    TransactionDetail(boolean affectsWithdrawableProfit) {
-        this.affectsWithdrawableProfit = affectsWithdrawableProfit;
-    }
+    /** Recebimento de juros ou outros rendimentos */
+    EXTRA_INCOME,
 
-    public boolean affectsWithdrawableProfit() {
-        return affectsWithdrawableProfit;
-    }
+    // === EXPENSES (SAÍDAS) ===
+
+    /** Custo direto do produto vendido (CPV / CMV) */
+    COST_OF_GOODS_SOLD,
+
+    /** Despesas fixas da operação (aluguel, contador, internet, etc.) */
+    FIXED_EXPENSE,
+
+    /** Despesas variáveis (marketing, comissões, tarifas, fretes por venda) */
+    VARIABLE_EXPENSE,
+
+    /** Pro-labore — retirada de sócios como salário */
+    PRO_LABORE,
+
+    /** Distribuição de lucro — retirada além do pro-labore */
+    PROFIT_DISTRIBUTION,
+
+    /** Compra de bens ou melhorias (máquinas, móveis, etc.) */
+    INVESTMENT,
+
+    /** Pagamento de impostos diversos (DAS, IRPJ, etc.) */
+    TAX,
+
+    /** Gastos pessoais pagos pelo caixa da empresa (não recomendados) */
+    PERSONAL_EXPENSE,
+
+    /** Outras despesas que não se encaixam nas anteriores */
+    OTHER_EXPENSE
 }

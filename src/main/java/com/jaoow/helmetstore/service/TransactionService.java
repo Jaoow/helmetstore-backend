@@ -6,11 +6,7 @@ import com.jaoow.helmetstore.model.Product;
 import com.jaoow.helmetstore.model.ProductVariant;
 import com.jaoow.helmetstore.model.PurchaseOrder;
 import com.jaoow.helmetstore.model.Sale;
-import com.jaoow.helmetstore.model.balance.Account;
-import com.jaoow.helmetstore.model.balance.PaymentMethod;
-import com.jaoow.helmetstore.model.balance.Transaction;
-import com.jaoow.helmetstore.model.balance.TransactionDetail;
-import com.jaoow.helmetstore.model.balance.TransactionType;
+import com.jaoow.helmetstore.model.balance.*;
 import com.jaoow.helmetstore.repository.TransactionRepository;
 import lombok.RequiredArgsConstructor;
 import org.modelmapper.ModelMapper;
@@ -44,7 +40,7 @@ public class TransactionService {
         transaction.setAccount(account);
         accountService.applyTransaction(account, transaction);
         transactionRepository.save(transaction);
-        
+
         // Invalidate financial caches after creating a transaction
         cacheInvalidationService.invalidateFinancialCaches();
     }
@@ -71,7 +67,7 @@ public class TransactionService {
 
         accountService.applyTransaction(account, transaction);
         transactionRepository.save(transaction);
-        
+
         // Invalidate financial caches after recording transaction from sale
         cacheInvalidationService.invalidateFinancialCaches();
     }
@@ -86,7 +82,7 @@ public class TransactionService {
         Transaction transaction = Transaction.builder()
                 .date(LocalDateTime.now())
                 .type(TransactionType.EXPENSE)
-                .detail(TransactionDetail.PRODUCT_PURCHASE)
+                .detail(TransactionDetail.COST_OF_GOODS_SOLD)
                 .description(PURCHASE_ORDER_REFERENCE_PREFIX + purchaseOrder.getOrderNumber())
                 .amount(purchaseOrder.getTotalAmount())
                 .paymentMethod(PaymentMethod.PIX)
@@ -96,7 +92,7 @@ public class TransactionService {
 
         accountService.applyTransaction(account, transaction); // maybe should be before save?
         transactionRepository.save(transaction);
-        
+
         // Invalidate financial caches after recording transaction from purchase order
         cacheInvalidationService.invalidateFinancialCaches();
     }
@@ -116,7 +112,7 @@ public class TransactionService {
         accountService.applyTransaction(account, transaction);
 
         transactionRepository.save(transaction);
-        
+
         // Invalidate financial caches after updating a transaction
         cacheInvalidationService.invalidateFinancialCaches();
     }
@@ -167,17 +163,19 @@ public class TransactionService {
     @Cacheable(value = com.jaoow.helmetstore.cache.CacheNames.PROFIT_CALCULATION, key = "#principal.name")
     public BigDecimal calculateProfit(Principal principal) {
         List<Transaction> transactions = transactionRepository.findByAccountUserEmail(principal.getName());
-        
+
         BigDecimal salesTotal = transactions.stream()
                 .filter(t -> t.getDetail() == TransactionDetail.SALE)
                 .map(Transaction::getAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        
+
+        // TODO: Refactor this to use a more specific method for profit-deducting transactions
+        // Currently, it assumes all transactions that affect withdrawable profit are profit-deducting
         BigDecimal expensesTotal = transactions.stream()
-                .filter(t -> t.getDetail().affectsWithdrawableProfit())
+                .filter(Transaction::affectsWithdrawableProfit)
                 .map(Transaction::getAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        
+
         return salesTotal.subtract(expensesTotal);
     }
 
@@ -187,17 +185,17 @@ public class TransactionService {
     @Cacheable(value = com.jaoow.helmetstore.cache.CacheNames.CASH_FLOW_CALCULATION, key = "#principal.name")
     public BigDecimal calculateCashFlow(Principal principal) {
         List<Transaction> transactions = transactionRepository.findByAccountUserEmail(principal.getName());
-        
+
         BigDecimal incomeTotal = transactions.stream()
                 .filter(t -> t.getType() == TransactionType.INCOME)
                 .map(Transaction::getAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        
+
         BigDecimal expenseTotal = transactions.stream()
                 .filter(t -> t.getType() == TransactionType.EXPENSE)
                 .map(Transaction::getAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        
+
         return incomeTotal.subtract(expenseTotal);
     }
 
@@ -208,7 +206,7 @@ public class TransactionService {
     public FinancialSummary calculateFinancialSummary(Principal principal) {
         BigDecimal profit = calculateProfit(principal);
         BigDecimal cashFlow = calculateCashFlow(principal);
-        
+
         return FinancialSummary.builder()
                 .profit(profit)
                 .cashFlow(cashFlow)

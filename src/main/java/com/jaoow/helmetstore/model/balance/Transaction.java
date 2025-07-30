@@ -42,4 +42,11 @@ public class Transaction {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "account_id", nullable = false)
     private Account account;
+
+    public boolean affectsWithdrawableProfit() {
+        if (type == TransactionType.EXPENSE) {
+            return detail != TransactionDetail.COST_OF_GOODS_SOLD;
+        }
+        return  false;
+    }
 }
