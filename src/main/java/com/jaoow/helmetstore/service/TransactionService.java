@@ -122,7 +122,7 @@ public class TransactionService {
         Transaction transaction = transactionRepository.findByIdAndAccountUserEmail(transactionId, principal.getName())
                 .orElseThrow(() -> new IllegalArgumentException("Transaction not found with ID: " + transactionId));
 
-        if (transaction.getReference().startsWith(SALE_REFERENCE_PREFIX) || transaction.getReference().startsWith(PURCHASE_ORDER_REFERENCE_PREFIX)) {
+        if (transaction.getDetail() == TransactionDetail.SALE || transaction.getDetail() == TransactionDetail.COST_OF_GOODS_SOLD) {
             throw new IllegalArgumentException("Você não pode excluir transações vinculadas a vendas ou pedidos de compra.");
         }
 
