@@ -10,4 +10,5 @@ public class SimpleProductDTO {
     private String model;
     private String color;
     private String imgUrl;
+    private String categoryName;
 }

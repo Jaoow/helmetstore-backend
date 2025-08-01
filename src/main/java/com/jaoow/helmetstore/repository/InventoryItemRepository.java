@@ -46,6 +46,7 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, Lo
                 p.model AS model,
                 p.color AS color,
                 p.imgUrl AS imgUrl,
+                COALESCE(c.name, '') AS categoryName,
                 ii.lastPurchaseDate AS lastPurchaseDate,
                 COALESCE(ii.lastPurchasePrice, 0) AS lastPurchasePrice,
                 COALESCE(ipd.salePrice, 0) AS salePrice,
@@ -69,6 +70,7 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, Lo
             FROM InventoryItem ii
             JOIN ProductVariant pv ON pv.id = ii.productVariant.id
             JOIN Product p ON p.id = pv.product.id
+            LEFT JOIN p.category c
             LEFT JOIN PurchaseOrderItem poi ON poi.productVariant.id = pv.id
             LEFT JOIN poi.purchaseOrder po ON po.inventory = :inventory
             LEFT JOIN SalesSummary ss ON ss.variantId = pv.id
@@ -77,14 +79,12 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, Lo
             WHERE ii.inventory = :inventory
             GROUP BY
                 p.id, pv.id, ii.quantity, ii.lastPurchaseDate, ii.lastPurchasePrice,
-                ss.lastSaleDate, ss.totalSold, ss.totalRevenue, ss.totalProfit, s.incomingStock, ipd.salePrice
+                ss.lastSaleDate, ss.totalSold, ss.totalRevenue, ss.totalProfit, s.incomingStock, ipd.salePrice, c.name
             ORDER BY p.model ASC, p.color ASC, pv.size
             """)
     List<ProductVariantSalesAndStockSummary> findAllWithSalesAndPurchaseDataByInventory(
             @Param("excludedStatuses") List<PurchaseOrderStatus> excludedStatuses,
-            @Param("inventory") Inventory inventory
-    );
-
+            @Param("inventory") Inventory inventory);
 
     @Query("""
                 WITH IncomingStock AS (
@@ -101,6 +101,7 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, Lo
                     p.model AS model,
                     p.color AS color,
                     p.imgUrl AS imgUrl,
+                    COALESCE(c.name, '') AS categoryName,
                     COALESCE(ii.lastPurchasePrice, 0) AS lastPurchasePrice,
                     COALESCE(ipd.salePrice, 0) AS salePrice,
                     ii.lastPurchaseDate AS lastPurchaseDate,
@@ -113,6 +114,7 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, Lo
                 FROM InventoryItem ii
                 JOIN ProductVariant pv ON pv.id = ii.productVariant.id
                 JOIN Product p ON p.id = pv.product.id
+                LEFT JOIN p.category c
                 LEFT JOIN IncomingStock is ON is.variantId = pv.id
                 LEFT JOIN ProductData ipd ON ipd.product = p AND ipd.inventory = :inventory
                 WHERE ii.inventory = :inventory
@@ -120,9 +122,7 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, Lo
             """)
     List<ProductVariantStockSummary> findAllWithStockDetailsByInventory(
             @Param("excludedStatuses") List<PurchaseOrderStatus> excludedStatuses,
-            @Param("inventory") Inventory inventory
-    );
-
+            @Param("inventory") Inventory inventory);
 
     @Query("""
                 WITH SalesSummary AS (
@@ -143,6 +143,7 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, Lo
                     p.model AS model,
                     p.color AS color,
                     p.imgUrl AS imgUrl,
+                    COALESCE(c.name, '') AS categoryName,
                     COALESCE(ipd.salePrice, 0) AS salePrice,
                     pv.id AS variantId,
                     pv.sku AS sku,
@@ -155,6 +156,7 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, Lo
                  FROM InventoryItem ii
                  JOIN ProductVariant pv ON ii.productVariant.id = pv.id
                  JOIN Product p ON pv.product.id = p.id
+                 LEFT JOIN p.category c
                  LEFT JOIN SalesSummary ss ON ss.variantId = pv.id
                  LEFT JOIN ProductData ipd ON ipd.product = p AND ipd.inventory = :inventory
                  WHERE ii.inventory = :inventory
@@ -162,12 +164,11 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, Lo
             """)
     List<ProductVariantSaleSummary> findAllWithSalesDataByInventory(@Param("inventory") Inventory inventory);
 
-
     Optional<InventoryItem> findByInventoryAndProductVariant(Inventory inventory, ProductVariant productVariant);
 
     @Modifying
     @Query("UPDATE InventoryItem ii SET ii.quantity = :quantity WHERE ii.productVariant.id = :variantId AND ii.inventory = :inventory")
     void updateStock(@Param("variantId") Long variantId,
-                     @Param("quantity") int quantity,
-                     @Param("inventory") Inventory inventory);
+            @Param("quantity") int quantity,
+            @Param("inventory") Inventory inventory);
 }

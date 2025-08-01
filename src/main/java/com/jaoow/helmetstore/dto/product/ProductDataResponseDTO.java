@@ -13,5 +13,6 @@ public class ProductDataResponseDTO {
     private Long productId;
     private Long inventoryId;
     private BigDecimal salePrice;
+    private String categoryName;
 
 }

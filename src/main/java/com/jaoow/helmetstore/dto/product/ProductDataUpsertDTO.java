@@ -17,4 +17,6 @@ public class ProductDataUpsertDTO {
     @NotNull
     @DecimalMin("0.0")
     private BigDecimal salePrice;
+
+    private String categoryName;
 }

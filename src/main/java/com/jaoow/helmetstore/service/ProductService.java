@@ -27,6 +27,7 @@ public class ProductService {
     private final ProductRepository productRepository;
     private final ModelMapper modelMapper;
     private final ProductVariantRepository productVariantRepository;
+    private final CategoryService categoryService;
 
     @Cacheable(value = CacheNames.PRODUCT)
     @Transactional(readOnly = true)
@@ -45,15 +46,18 @@ public class ProductService {
 
     @Transactional
     @PreAuthorize("hasRole('ADMIN')")
-    @Caching(
-        evict = {
+    @Caching(evict = {
             @CacheEvict(value = CacheNames.PRODUCT, allEntries = true),
             @CacheEvict(value = CacheNames.PRODUCT_INDICATORS, allEntries = true),
             @CacheEvict(value = CacheNames.PRODUCT_STOCK, allEntries = true)
-        }
-    )
+    })
     public ProductDto save(ProductCreateDTO productDTO) {
         Product product = modelMapper.map(productDTO, Product.class);
+
+        // Handle category assignment
+        if (productDTO.getCategoryName() != null && !productDTO.getCategoryName().trim().isEmpty()) {
+            product.setCategory(categoryService.findOrCreateCategory(productDTO.getCategoryName()));
+        }
 
         if (productDTO.getVariants() != null) {
             final Product finalProduct = product;
@@ -81,6 +85,13 @@ public class ProductService {
         product.setColor(productDTO.getColor());
         product.setImgUrl(productDTO.getImgUrl());
 
+        // Handle category update
+        if (productDTO.getCategoryName() != null && !productDTO.getCategoryName().trim().isEmpty()) {
+            product.setCategory(categoryService.findOrCreateCategory(productDTO.getCategoryName()));
+        } else {
+            product.setCategory(null);
+        }
+
         updateProductVariants(product, productDTO.getVariants());
 
         product = productRepository.save(product);
@@ -88,7 +99,8 @@ public class ProductService {
     }
 
     private void updateProductVariants(Product product, List<ProductDto.ProductVariantDto> variantDtos) {
-        if (variantDtos == null) return;
+        if (variantDtos == null)
+            return;
 
         Map<Long, ProductVariant> existingVariants = product.getVariants().stream()
                 .collect(Collectors.toMap(ProductVariant::getId, v -> v));
@@ -121,7 +133,6 @@ public class ProductService {
         product.getVariants().clear();
         product.getVariants().addAll(updatedVariants);
     }
-
 
     @Transactional
     @PreAuthorize("hasRole('ADMIN')")

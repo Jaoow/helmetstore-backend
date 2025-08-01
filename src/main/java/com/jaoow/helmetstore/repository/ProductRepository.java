@@ -9,7 +9,7 @@ import java.util.List;
 
 public interface ProductRepository extends JpaRepository<Product, Long> {
 
-    @EntityGraph(attributePaths = {"variants"})
+    @EntityGraph(attributePaths = { "variants", "category" })
     @Query("SELECT DISTINCT p FROM Product p ORDER BY p.model, p.color")
     List<Product> findAllWithVariants();
 
