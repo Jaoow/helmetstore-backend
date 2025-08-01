@@ -10,14 +10,15 @@ public class CacheNames {
     public static final String PURCHASE_ORDER_HISTORY = "purchaseOrderHistory";
 
     public static final String PRODUCT = "product";
-    
+    public static final String CATEGORY = "category";
+
     // Cash Flow Cache Names
     public static final String CASH_FLOW_SUMMARY = "cashFlowSummary";
     public static final String MONTHLY_CASH_FLOW = "monthlyCashFlow";
     public static final String FINANCIAL_SUMMARY = "financialSummary";
     public static final String PROFIT_CALCULATION = "profitCalculation";
     public static final String CASH_FLOW_CALCULATION = "cashFlowCalculation";
-    
+
     // Profit Tracking Cache Names
     public static final String PROFIT_SUMMARY = "profitSummary";
     public static final String MONTHLY_PROFIT = "monthlyProfit";
@@ -30,6 +31,7 @@ public class CacheNames {
             SALES_HISTORY,
             PURCHASE_ORDER_HISTORY,
             PRODUCT,
+            CATEGORY,
             CASH_FLOW_SUMMARY,
             MONTHLY_CASH_FLOW,
             FINANCIAL_SUMMARY,

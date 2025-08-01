@@ -14,6 +14,8 @@ public interface ProductVariantSalesAndStockSummary {
 
     String getImgUrl();
 
+    String getCategoryName();
+
     BigDecimal getSalePrice();
 
     LocalDate getLastPurchaseDate();

@@ -12,6 +12,8 @@ public interface ProductVariantSaleSummary {
 
     String getImgUrl();
 
+    String getCategoryName();
+
     Long getVariantId();
 
     String getSku();

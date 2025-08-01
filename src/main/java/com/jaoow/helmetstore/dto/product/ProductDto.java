@@ -20,6 +20,7 @@ public class ProductDto implements Serializable {
     private String imgUrl;
     private BigDecimal lastPurchasePrice;
     private LocalDate lastPurchaseDate;
+    private String categoryName;
     private List<ProductVariantDto> variants = new ArrayList<>();
 
     @Data

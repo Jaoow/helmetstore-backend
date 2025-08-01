@@ -17,6 +17,7 @@ public class BaseProductStockDto<V extends BaseProductStockVariantDto> implement
     private String model;
     private String color;
     private String imgUrl;
+    private String categoryName;
     private BigDecimal salePrice;
     private List<V> variants = new ArrayList<>();
 }

@@ -24,6 +24,8 @@ public class ProductCreateDTO {
     @Pattern(regexp = "https?://.*", message = "Invalid URL")
     private String imgUrl;
 
+    private String categoryName;
+
     private List<ProductVariantDTO> variants;
 
     @Getter
@@ -40,4 +42,3 @@ public class ProductCreateDTO {
         private BigDecimal quantity = BigDecimal.ZERO;
     }
 }
-

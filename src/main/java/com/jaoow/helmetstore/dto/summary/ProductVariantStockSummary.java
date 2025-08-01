@@ -12,6 +12,8 @@ public interface ProductVariantStockSummary {
 
     String getImgUrl();
 
+    String getCategoryName();
+
     BigDecimal getSalePrice();
 
     BigDecimal getLastPurchasePrice();
