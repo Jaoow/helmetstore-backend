@@ -80,7 +80,7 @@ public class TransactionService {
                 .orElseThrow(() -> new AccountNotFoundException("No account found for the given payment method."));
 
         Transaction transaction = Transaction.builder()
-                .date(LocalDateTime.now())
+                .date(purchaseOrder.getDate().atStartOfDay())
                 .type(TransactionType.EXPENSE)
                 .detail(TransactionDetail.COST_OF_GOODS_SOLD)
                 .description(PURCHASE_ORDER_REFERENCE_PREFIX + purchaseOrder.getOrderNumber())
