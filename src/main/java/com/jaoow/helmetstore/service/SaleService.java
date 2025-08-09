@@ -4,6 +4,7 @@ import com.jaoow.helmetstore.cache.CacheNames;
 import com.jaoow.helmetstore.dto.reference.SimpleProductDTO;
 import com.jaoow.helmetstore.dto.reference.SimpleProductVariantDTO;
 import com.jaoow.helmetstore.dto.sale.SaleCreateDTO;
+import com.jaoow.helmetstore.dto.sale.SalePaymentCreateDTO;
 import com.jaoow.helmetstore.dto.sale.SaleHistoryResponse;
 import com.jaoow.helmetstore.dto.sale.SaleResponseDTO;
 import com.jaoow.helmetstore.exception.InsufficientStockException;
@@ -12,6 +13,7 @@ import com.jaoow.helmetstore.exception.ResourceNotFoundException;
 import com.jaoow.helmetstore.helper.InventoryHelper;
 import com.jaoow.helmetstore.model.ProductVariant;
 import com.jaoow.helmetstore.model.Sale;
+import com.jaoow.helmetstore.model.sale.SalePayment;
 import com.jaoow.helmetstore.model.inventory.Inventory;
 import com.jaoow.helmetstore.model.inventory.InventoryItem;
 import com.jaoow.helmetstore.repository.InventoryItemRepository;
@@ -29,6 +31,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.security.Principal;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Service
@@ -76,8 +79,30 @@ public class SaleService {
         item.setQuantity(item.getQuantity() - dto.getQuantity());
         inventoryItemRepository.save(item);
 
+        // Validate payments sum equals total to be received
+        BigDecimal saleTotal = dto.getUnitPrice().multiply(BigDecimal.valueOf(dto.getQuantity()));
+        BigDecimal paymentsSum = dto.getPayments().stream().map(SalePaymentCreateDTO::getAmount).reduce(BigDecimal.ZERO,
+                BigDecimal::add);
+        if (saleTotal.compareTo(paymentsSum) != 0) {
+            throw new IllegalArgumentException("A soma dos pagamentos (" + paymentsSum
+                    + ") deve ser igual ao total da venda (" + saleTotal + ").");
+        }
+
+        // Map payments
+        final Sale saleRef = sale;
+        List<SalePayment> payments = dto.getPayments().stream()
+                .filter(Objects::nonNull)
+                .map(p -> SalePayment.builder()
+                        .sale(saleRef)
+                        .paymentMethod(p.getPaymentMethod())
+                        .amount(p.getAmount())
+                        .build())
+                .collect(Collectors.toList());
+        sale.setPayments(payments);
+
         sale = saleRepository.save(sale);
-        transactionService.recordTransactionFromSale(sale, principal); // must be called after sale is saved to ensure transaction ID is set
+        transactionService.recordTransactionFromSale(sale, principal); // must be called after sale is saved to ensure
+                                                                       // transaction ID is set
 
         return modelMapper.map(sale, SaleResponseDTO.class);
     }
@@ -134,7 +159,34 @@ public class SaleService {
         sale.setUnitPrice(dto.getUnitPrice());
         sale.setDate(dto.getDate());
 
+        // Validate payments sum equals total to be received
+        BigDecimal saleTotal = dto.getUnitPrice().multiply(BigDecimal.valueOf(dto.getQuantity()));
+        BigDecimal paymentsSum = dto.getPayments().stream().map(SalePaymentCreateDTO::getAmount).reduce(BigDecimal.ZERO,
+                BigDecimal::add);
+        if (saleTotal.compareTo(paymentsSum) != 0) {
+            throw new IllegalArgumentException("A soma dos pagamentos (" + paymentsSum
+                    + ") deve ser igual ao total da venda (" + saleTotal + ").");
+        }
+
+        // Replace payments
+        if (sale.getPayments() != null) {
+            sale.getPayments().clear();
+        }
+        final Sale saleRef2 = sale;
+        List<SalePayment> payments = dto.getPayments().stream()
+                .filter(Objects::nonNull)
+                .map(p -> SalePayment.builder()
+                        .sale(saleRef2)
+                        .paymentMethod(p.getPaymentMethod())
+                        .amount(p.getAmount())
+                        .build())
+                .collect(Collectors.toList());
+        sale.setPayments(payments);
+
+        // Update transactions linked to sale by removing and creating new ones
+        transactionService.removeTransactionLinkedToSale(sale);
         sale = saleRepository.save(sale);
+        transactionService.recordTransactionFromSale(sale, principal);
         return modelMapper.map(sale, SaleResponseDTO.class);
     }
 
@@ -151,8 +203,10 @@ public class SaleService {
         Sale sale = saleRepository.findByIdAndInventory(id, inventory)
                 .orElseThrow(() -> new ResourceNotFoundException("Sale not found with ID: " + id));
 
-        InventoryItem item = inventoryItemRepository.findByInventoryAndProductVariant(sale.getInventory(), sale.getProductVariant())
-                .orElseThrow(() -> new ResourceNotFoundException("Inventory item not found for variant ID: " + sale.getProductVariant().getId()));
+        InventoryItem item = inventoryItemRepository
+                .findByInventoryAndProductVariant(sale.getInventory(), sale.getProductVariant())
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Inventory item not found for variant ID: " + sale.getProductVariant().getId()));
 
         item.setQuantity(item.getQuantity() + sale.getQuantity());
         inventoryItemRepository.save(item);
@@ -193,12 +247,14 @@ public class SaleService {
 
     private InventoryItem getInventoryItemOrThrow(Inventory inventory, ProductVariant variant) {
         return inventoryItemRepository.findByInventoryAndProductVariant(inventory, variant)
-                .orElseThrow(() -> new ResourceNotFoundException("Inventory item not found for variant ID: " + variant.getId()));
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Inventory item not found for variant ID: " + variant.getId()));
     }
 
     private void validateStock(InventoryItem item, int requiredQuantity) {
         if (item.getQuantity() < requiredQuantity) {
-            throw new InsufficientStockException("Insufficient stock for variant ID: " + item.getProductVariant().getId());
+            throw new InsufficientStockException(
+                    "Insufficient stock for variant ID: " + item.getProductVariant().getId());
         }
     }
 
