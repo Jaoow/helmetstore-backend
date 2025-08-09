@@ -2,6 +2,7 @@ package com.jaoow.helmetstore.controller;
 
 import com.jaoow.helmetstore.dto.sale.SaleCreateDTO;
 import com.jaoow.helmetstore.dto.sale.SaleHistoryResponse;
+import com.jaoow.helmetstore.dto.sale.SaleDetailDTO;
 import com.jaoow.helmetstore.dto.sale.SaleResponseDTO;
 import com.jaoow.helmetstore.service.SaleService;
 import jakarta.validation.Valid;
@@ -22,6 +23,11 @@ public class SaleController {
         return saleService.findAll();
     }
 
+    @GetMapping("/{id}")
+    public SaleDetailDTO getById(@PathVariable Long id, Principal principal) {
+        return saleService.getById(id, principal);
+    }
+
     @GetMapping("/history")
     public SaleHistoryResponse getHistory(Principal principal) {
         return saleService.getHistory(principal);
@@ -33,7 +39,8 @@ public class SaleController {
     }
 
     @PutMapping("/{id}")
-    public SaleResponseDTO update(@PathVariable Long id, @RequestBody @Valid SaleCreateDTO saleCreateDTO, Principal principal) {
+    public SaleResponseDTO update(@PathVariable Long id, @RequestBody @Valid SaleCreateDTO saleCreateDTO,
+            Principal principal) {
         return saleService.update(id, saleCreateDTO, principal);
     }
 
