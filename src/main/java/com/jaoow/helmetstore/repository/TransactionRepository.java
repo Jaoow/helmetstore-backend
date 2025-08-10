@@ -11,23 +11,24 @@ import java.util.Optional;
 
 public interface TransactionRepository extends JpaRepository<Transaction, Long> {
 
-    Optional<Transaction> findByIdAndAccountUserEmail(Long id, String accountUserEmail);
+       Optional<Transaction> findByIdAndAccountUserEmail(Long id, String accountUserEmail);
 
-    Optional<Transaction> findByReference(String reference);
+       Optional<Transaction> findByReference(String reference);
 
-    @Query("SELECT t FROM Transaction t JOIN t.account a WHERE a.user.email = :userEmail ORDER BY t.date DESC")
-    List<Transaction> findByAccountUserEmail(@Param("userEmail") String userEmail);
+       List<Transaction> findAllByReference(String reference);
 
-    @Query("SELECT t FROM Transaction t JOIN t.account a WHERE a.user.email = :userEmail " +
-           "AND t.date >= :startDate AND t.date < :endDate ORDER BY t.date DESC")
-    List<Transaction> findByAccountUserEmailAndDateRange(
-            @Param("userEmail") String userEmail,
-            @Param("startDate") LocalDateTime startDate,
-            @Param("endDate") LocalDateTime endDate
-    );
+       @Query("SELECT t FROM Transaction t JOIN t.account a WHERE a.user.email = :userEmail ORDER BY t.date DESC")
+       List<Transaction> findByAccountUserEmail(@Param("userEmail") String userEmail);
 
-    @Query("SELECT DISTINCT YEAR(t.date) as year, MONTH(t.date) as month " +
-           "FROM Transaction t JOIN t.account a WHERE a.user.email = :userEmail " +
-           "ORDER BY year DESC, month DESC")
-    List<Object[]> findDistinctMonthsByUserEmail(@Param("userEmail") String userEmail);
+       @Query("SELECT t FROM Transaction t JOIN t.account a WHERE a.user.email = :userEmail " +
+                     "AND t.date >= :startDate AND t.date < :endDate ORDER BY t.date DESC")
+       List<Transaction> findByAccountUserEmailAndDateRange(
+                     @Param("userEmail") String userEmail,
+                     @Param("startDate") LocalDateTime startDate,
+                     @Param("endDate") LocalDateTime endDate);
+
+       @Query("SELECT DISTINCT YEAR(t.date) as year, MONTH(t.date) as month " +
+                     "FROM Transaction t JOIN t.account a WHERE a.user.email = :userEmail " +
+                     "ORDER BY year DESC, month DESC")
+       List<Object[]> findDistinctMonthsByUserEmail(@Param("userEmail") String userEmail);
 }

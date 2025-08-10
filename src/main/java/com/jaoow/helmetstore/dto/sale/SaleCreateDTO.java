@@ -1,13 +1,15 @@
 package com.jaoow.helmetstore.dto.sale;
 
-import com.jaoow.helmetstore.model.balance.PaymentMethod;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import lombok.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Getter
 @Setter
@@ -22,12 +24,13 @@ public class SaleCreateDTO {
     @NotNull
     private Long variantId;
 
-    @NotNull
-    private PaymentMethod paymentMethod;
-
     @Min(1)
     private int quantity;
 
     @DecimalMin("0.0")
     private BigDecimal unitPrice;
+
+    @NotEmpty
+    @Valid
+    private List<SalePaymentCreateDTO> payments;
 }
