@@ -39,5 +39,10 @@ public enum TransactionDetail {
     PERSONAL_EXPENSE,
 
     /** Outras despesas que não se encaixam nas anteriores */
-    OTHER_EXPENSE
+    OTHER_EXPENSE,
+
+    // === TRANSFERS (TRANSFERÊNCIAS) ===
+
+    /** Transferência entre contas (genérica) */
+    INTER_ACCOUNT_TRANSFER
 }

@@ -1,6 +1,7 @@
 package com.jaoow.helmetstore.controller;
 
 import com.jaoow.helmetstore.dto.balance.AccountInfo;
+import com.jaoow.helmetstore.dto.balance.BalanceConversionDTO;
 import com.jaoow.helmetstore.dto.balance.CashFlowSummaryDTO;
 import com.jaoow.helmetstore.dto.balance.MonthlyCashFlowDTO;
 import com.jaoow.helmetstore.dto.balance.MonthlyProfitDTO;
@@ -116,8 +117,14 @@ public class AccountController {
     }
 
     @PutMapping("/transaction/{transactionId}")
-    public void updateTransaction(@PathVariable Long transactionId, @RequestBody TransactionCreateDTO transactionCreateDTO, Principal principal) {
+    public void updateTransaction(@PathVariable Long transactionId,
+            @RequestBody TransactionCreateDTO transactionCreateDTO, Principal principal) {
         transactionService.updateTransaction(transactionId, transactionCreateDTO, principal);
+    }
+
+    @PostMapping("/convert/balance")
+    public void convertBalance(@Valid @RequestBody BalanceConversionDTO conversionDTO, Principal principal) {
+        accountService.convertBalance(conversionDTO, principal);
     }
 
 }
