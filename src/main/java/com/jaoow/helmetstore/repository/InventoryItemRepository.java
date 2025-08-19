@@ -171,4 +171,8 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, Lo
     void updateStock(@Param("variantId") Long variantId,
             @Param("quantity") int quantity,
             @Param("inventory") Inventory inventory);
+
+    @Modifying
+    @Query("DELETE FROM InventoryItem ii WHERE ii.productVariant.product.id = :productId AND ii.inventory = :inventory")
+    void deleteByProductIdAndInventory(@Param("productId") Long productId, @Param("inventory") Inventory inventory);
 }

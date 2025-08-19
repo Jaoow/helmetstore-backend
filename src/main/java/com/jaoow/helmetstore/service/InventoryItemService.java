@@ -34,4 +34,14 @@ public class InventoryItemService {
             inventoryItemRepository.updateStock(stockUpdateDTO.getVariantId(), stockUpdateDTO.getStock(), inventory);
         }
     }
+
+    @Transactional
+    @Caching(evict = {
+            @CacheEvict(value = CacheNames.PRODUCT_INDICATORS, key = "#principal.name"),
+            @CacheEvict(value = CacheNames.PRODUCT_STOCK, key = "#principal.name"),
+    })
+    public void deleteProductFromInventory(Long productId, Principal principal) {
+        Inventory inventory = inventoryHelper.getInventoryFromPrincipal(principal);
+        inventoryItemRepository.deleteByProductIdAndInventory(productId, inventory);
+    }
 }
