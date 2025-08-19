@@ -16,14 +16,14 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class ProfitSummaryDTO {
-    
+
     private BigDecimal totalBankBalance;
     private BigDecimal totalCashBalance;
     private BigDecimal totalBalance;
-    
+
     private BigDecimal totalProfit;
-    private BigDecimal totalProfitAvailableForWithdrawal;
-    private BigDecimal totalProfitDeductingTransactions;
-    
+    private BigDecimal totalNetProfit;
+    private BigDecimal totalExpenseTransactions;
+
     private List<MonthlyProfitDTO> monthlyBreakdown;
-} 
+}

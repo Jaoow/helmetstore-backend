@@ -53,12 +53,12 @@ public class ProfitTrackingService {
                 .map(FinancialSummaryDTO::getTotalProfit)
                 .orElse(BigDecimal.ZERO);
 
-        BigDecimal totalProfitDeductingTransactions = allTransactions.stream()
+        BigDecimal totalExpenseTransactions = allTransactions.stream()
                 .filter(Transaction::affectsWithdrawableProfit)
                 .map(Transaction::getAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        BigDecimal totalProfitAvailableForWithdrawal = totalProfit.subtract(totalProfitDeductingTransactions);
+        BigDecimal totalNetProfit = totalProfit.subtract(totalExpenseTransactions);
 
         List<MonthlyProfitDTO> monthlyBreakdown = getMonthlyProfitBreakdown(principal);
 
@@ -67,8 +67,8 @@ public class ProfitTrackingService {
                 .totalCashBalance(cashBalance)
                 .totalBalance(totalBalance)
                 .totalProfit(totalProfit)
-                .totalProfitAvailableForWithdrawal(totalProfitAvailableForWithdrawal)
-                .totalProfitDeductingTransactions(totalProfitDeductingTransactions)
+                .totalNetProfit(totalNetProfit)
+                .totalExpenseTransactions(totalExpenseTransactions)
                 .monthlyBreakdown(monthlyBreakdown)
                 .build();
     }
@@ -88,7 +88,7 @@ public class ProfitTrackingService {
                 .collect(Collectors.toList());
 
         List<MonthlyProfitDTO> result = new ArrayList<>();
-        BigDecimal accumulatedProfitAvailableForWithdrawal = BigDecimal.ZERO;
+        BigDecimal accumulatedNetProfit = BigDecimal.ZERO;
 
         for (YearMonth yearMonth : sortedMonths) {
             Map<String, BigDecimal> cumulativeBalances = calculateCumulativeAccountBalancesUpToMonth(
@@ -98,8 +98,8 @@ public class ProfitTrackingService {
             MonthlyProfitDTO monthlyData = getMonthlyProfit(principal, yearMonth);
 
             BigDecimal monthlyProfitAvailable = monthlyData.getMonthlyProfit()
-                    .subtract(monthlyData.getMonthlyProfitDeductingTransactions());
-            accumulatedProfitAvailableForWithdrawal = accumulatedProfitAvailableForWithdrawal
+                    .subtract(monthlyData.getMonthlyExpenseTransactions());
+            accumulatedNetProfit = accumulatedNetProfit
                     .add(monthlyProfitAvailable);
 
             MonthlyProfitDTO monthlyWithCumulativeBalance = MonthlyProfitDTO.builder()
@@ -109,11 +109,11 @@ public class ProfitTrackingService {
                     .totalBalance(cumulativeBalances.get("bank")
                             .add(cumulativeBalances.get("cash")))
                     .monthlyProfit(monthlyData.getMonthlyProfit())
-                    .accumulatedProfitAvailableForWithdrawal(
-                            accumulatedProfitAvailableForWithdrawal)
-                    .monthlyProfitDeductingTransactions(
-                            monthlyData.getMonthlyProfitDeductingTransactions())
-                    .profitDeductingTransactions(monthlyData.getProfitDeductingTransactions())
+                    .accumulatedNetProfit(
+                            accumulatedNetProfit)
+                    .monthlyExpenseTransactions(
+                            monthlyData.getMonthlyExpenseTransactions())
+                    .expenseTransactions(monthlyData.getExpenseTransactions())
                     .build();
 
             result.add(monthlyWithCumulativeBalance);
@@ -135,12 +135,12 @@ public class ProfitTrackingService {
         BigDecimal monthlyProfit = saleRepository.getTotalProfitByDateRange(inventory, startOfMonth,
                 startOfNextMonth);
 
-        BigDecimal monthlyProfitDeductingTransactions = monthlyTransactions.stream()
+        BigDecimal monthlyExpenseTransactions = monthlyTransactions.stream()
                 .filter(Transaction::affectsWithdrawableProfit)
                 .map(Transaction::getAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        List<Transaction> profitDeductingTransactions = monthlyTransactions.stream()
+        List<Transaction> expenseTransactions = monthlyTransactions.stream()
                 .filter(Transaction::affectsWithdrawableProfit)
                 .collect(Collectors.toList());
 
@@ -152,8 +152,8 @@ public class ProfitTrackingService {
                 .cashAccountBalance(accountBalances.get("cash"))
                 .totalBalance(accountBalances.get("bank").add(accountBalances.get("cash")))
                 .monthlyProfit(monthlyProfit)
-                .monthlyProfitDeductingTransactions(monthlyProfitDeductingTransactions)
-                .profitDeductingTransactions(convertToTransactionInfo(profitDeductingTransactions))
+                .monthlyExpenseTransactions(monthlyExpenseTransactions)
+                .expenseTransactions(convertToTransactionInfo(expenseTransactions))
                 .build();
     }
 
@@ -212,8 +212,7 @@ public class ProfitTrackingService {
 
         return Map.of(
                 "bank", cumulativeBankBalance,
-                "cash", cumulativeCashBalance
-        );
+                "cash", cumulativeCashBalance);
     }
 
     private List<TransactionInfo> convertToTransactionInfo(List<Transaction> transactions) {

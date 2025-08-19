@@ -17,16 +17,16 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class MonthlyProfitDTO {
-    
+
     private YearMonth month;
-    
+
     private BigDecimal bankAccountBalance;
     private BigDecimal cashAccountBalance;
     private BigDecimal totalBalance;
-    
+
     private BigDecimal monthlyProfit;
-    private BigDecimal accumulatedProfitAvailableForWithdrawal;
-    private BigDecimal monthlyProfitDeductingTransactions;
-    
-    private List<TransactionInfo> profitDeductingTransactions;
-} 
+    private BigDecimal accumulatedNetProfit;
+    private BigDecimal monthlyExpenseTransactions;
+
+    private List<TransactionInfo> expenseTransactions;
+}
