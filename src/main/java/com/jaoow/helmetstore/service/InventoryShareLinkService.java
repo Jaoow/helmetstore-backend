@@ -35,7 +35,6 @@ public class InventoryShareLinkService {
     private final InventoryShareLinkRepository linkRepository;
     private final InventoryItemRepository inventoryItemRepository;
 
-
     @Transactional(readOnly = true)
     public ShareLinkStoreViewDTO getShareLinkStoreView(String token) {
         InventoryShareLink shareLink = linkRepository.findByTokenAndActiveTrue(token)
@@ -63,8 +62,7 @@ public class InventoryShareLinkService {
         for (ProductVariantStockSummary summary : projections) {
             PublicProductStockDto productStock = productMap.computeIfAbsent(
                     summary.getProductId(),
-                    id -> mapToPublicProductStockDto(summary)
-            );
+                    id -> mapToPublicProductStockDto(summary));
 
             productStock.getVariants().add(mapToPublicProductStockVariantDto(summary));
         }
@@ -120,6 +118,10 @@ public class InventoryShareLinkService {
                 .storeName(dto.getStoreName())
                 .createdAt(LocalDateTime.now())
                 .active(true)
+                .showStockQuantity(true)
+                .showPrice(true)
+                .showWhatsappButton(true)
+                .showSizeSelector(true)
                 .build();
 
         link = linkRepository.save(link);
@@ -158,6 +160,10 @@ public class InventoryShareLinkService {
 
         if (dto.getShowWhatsappButton() != null) {
             link.setShowWhatsappButton(dto.getShowWhatsappButton());
+        }
+
+        if (dto.getShowSizeSelector() != null) {
+            link.setShowSizeSelector(dto.getShowSizeSelector());
         }
 
         if (dto.getWhatsappNumber() != null) {

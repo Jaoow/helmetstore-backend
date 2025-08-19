@@ -36,6 +36,9 @@ public class InventoryShareLink {
     private boolean showWhatsappButton;
 
     @Column
+    private Boolean showSizeSelector;
+
+    @Column
     private String whatsappNumber;
 
     @Column

@@ -10,6 +10,7 @@ public class ShareLinkDTO {
     private Boolean showStockQuantity;
     private Boolean showPrice;
     private Boolean showWhatsappButton;
+    private Boolean showSizeSelector;
     private String whatsappNumber;
     private String whatsappMessage;
 }

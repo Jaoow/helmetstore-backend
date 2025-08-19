@@ -22,6 +22,8 @@ public class ShareLinkUpdateDTO {
 
     private Boolean showWhatsappButton;
 
+    private Boolean showSizeSelector;
+
     @Pattern(regexp = "^\\+55\\d{11}$", message = "O número do WhatsApp deve estar no formato +55DDDDDDDDDD, onde D é um dígito.")
     private String whatsappNumber;
 
