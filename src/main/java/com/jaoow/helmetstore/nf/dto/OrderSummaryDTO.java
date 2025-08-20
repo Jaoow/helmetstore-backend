@@ -14,6 +14,7 @@ import java.util.List;
 public class OrderSummaryDTO {
     private String invoiceNumber;
     private String invoiceDate;
+    private String purchaseOrderNumber;
     private double totalPrice;
     private List<OrderItemDTO> items;
     private List<String> itemsNotFound;

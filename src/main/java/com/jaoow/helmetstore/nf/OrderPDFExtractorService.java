@@ -31,6 +31,7 @@ public class OrderPDFExtractorService {
     public OrderSummaryDTO extractOrderSummary(File pdfFile) throws IOException {
         String invoiceNumber = "";
         String invoiceDate = "";
+        String purchaseOrderNumber = "";
         double totalPrice = 0.0;
         List<OrderItemDTO> items = new ArrayList<>();
         List<String> itemsNotFound = new ArrayList<>();
@@ -43,6 +44,13 @@ public class OrderPDFExtractorService {
             Matcher invoiceNumberMatcher = invoiceNumberPattern.matcher(text);
             if (invoiceNumberMatcher.find()) {
                 invoiceNumber = invoiceNumberMatcher.group(1);
+            }
+
+            Pattern purchaseOrderPattern = Pattern
+                    .compile("Inf\\.\\s*fisco:\\s*PEDIDO\\s*DE\\s*COMPRA:\\s*([A-Z0-9-]+)");
+            Matcher purchaseOrderMatcher = purchaseOrderPattern.matcher(text);
+            if (purchaseOrderMatcher.find()) {
+                purchaseOrderNumber = purchaseOrderMatcher.group(1);
             }
 
             Pattern issueDatePattern = Pattern.compile("DATA DA EMISSÃO\\s*(\\d{2}/\\d{2}/\\d{4})");
@@ -75,6 +83,6 @@ public class OrderPDFExtractorService {
                 }
             }
         }
-        return new OrderSummaryDTO(invoiceNumber, invoiceDate, totalPrice, items, itemsNotFound);
+        return new OrderSummaryDTO(invoiceNumber, invoiceDate, purchaseOrderNumber, totalPrice, items, itemsNotFound);
     }
 }
