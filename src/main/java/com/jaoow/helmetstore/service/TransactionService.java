@@ -61,7 +61,7 @@ public class TransactionService {
                                         .type(TransactionType.INCOME)
                                         .detail(TransactionDetail.SALE)
                                         .description(SALE_REFERENCE_PREFIX
-                                                        + formatProductVariantName(sale.getProductVariant()))
+                                                        + formatProductVariantName(sale.getItems().getFirst().getProductVariant()))
                                         .amount(payment.getAmount())
                                         .paymentMethod(payment.getPaymentMethod())
                                         .reference(SALE_REFERENCE_PREFIX + sale.getId())

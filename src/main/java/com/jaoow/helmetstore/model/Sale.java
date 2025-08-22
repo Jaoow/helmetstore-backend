@@ -1,6 +1,7 @@
 package com.jaoow.helmetstore.model;
 
 import com.jaoow.helmetstore.model.inventory.Inventory;
+import com.jaoow.helmetstore.model.sale.SaleItem;
 import com.jaoow.helmetstore.model.sale.SalePayment;
 import jakarta.persistence.*;
 import lombok.*;
@@ -20,15 +21,16 @@ public class Sale {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(nullable = false)
     private LocalDateTime date;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    private ProductVariant productVariant;
+    @OneToMany(mappedBy = "sale", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    private List<SaleItem> items;
 
-    private int quantity;
+    @Column(nullable = false, precision = 12, scale = 2)
+    private BigDecimal totalAmount;
 
-    private BigDecimal unitPrice;
-
+    @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal totalProfit;
 
     @OneToMany(mappedBy = "sale", cascade = CascadeType.ALL, orphanRemoval = true)

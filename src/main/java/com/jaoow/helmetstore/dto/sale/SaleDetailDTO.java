@@ -14,9 +14,16 @@ import java.util.List;
 public class SaleDetailDTO {
     private Long id;
     private LocalDateTime date;
-    private Long productVariantId;
-    private int quantity;
-    private BigDecimal unitPrice;
+    private List<SaleItemDTO> items;
+    private BigDecimal totalAmount;
     private BigDecimal totalProfit;
     private List<SalePaymentDTO> payments;
+
+    // Campos de compatibilidade com o modelo antigo
+    @Deprecated
+    private Long productVariantId;
+    @Deprecated
+    private int quantity;
+    @Deprecated
+    private BigDecimal unitPrice;
 }

@@ -17,37 +17,36 @@ import java.util.Optional;
 @Repository
 public interface SaleRepository extends JpaRepository<Sale, Long> {
 
-    Optional<Sale> findByIdAndInventory(Long id, Inventory inventory);
+        Optional<Sale> findByIdAndInventory(Long id, Inventory inventory);
 
-    @Query("""
-            SELECT new com.jaoow.helmetstore.dto.FinancialSummaryDTO(
-                (SELECT COALESCE(SUM(s.unitPrice * s.quantity), 0) FROM Sale s WHERE s.inventory = :inventory),
-                (SELECT COALESCE(SUM(s.totalProfit), 0) FROM Sale s WHERE s.inventory = :inventory )
-            )
-            """)
-    Optional<FinancialSummaryDTO> getFinancialSummary(@Param("inventory") Inventory inventory);
+        @Query("""
+                        SELECT new com.jaoow.helmetstore.dto.FinancialSummaryDTO(
+                            (SELECT COALESCE(SUM(s.totalAmount), 0) FROM Sale s WHERE s.inventory = :inventory),
+                            (SELECT COALESCE(SUM(s.totalProfit), 0) FROM Sale s WHERE s.inventory = :inventory )
+                        )
+                        """)
+        Optional<FinancialSummaryDTO> getFinancialSummary(@Param("inventory") Inventory inventory);
 
-    @Query("""
-            SELECT s FROM Sale s
-            JOIN FETCH s.productVariant pv
-            JOIN FETCH pv.product
-            WHERE s.inventory = :inventory
-            ORDER BY s.date DESC, s.id DESC
-            """)
-    List<Sale> findAllByInventoryWithProductVariantsAndProducts(@Param("inventory") Inventory inventory);
+        @Query("""
+                        SELECT DISTINCT s FROM Sale s
+                        LEFT JOIN FETCH s.items si
+                        LEFT JOIN FETCH si.productVariant sipv
+                        LEFT JOIN FETCH sipv.product
+                        WHERE s.inventory = :inventory
+                        ORDER BY s.date DESC, s.id DESC
+                        """)
+        List<Sale> findAllByInventoryWithProductVariantsAndProducts(@Param("inventory") Inventory inventory);
 
-    @Query("""
-            SELECT COALESCE(SUM(s.totalProfit), 0)
-            FROM Sale s
-            WHERE s.inventory = :inventory
-            AND s.date >= :startDate
-            AND s.date < :endDate
-            """)
-    BigDecimal getTotalProfitByDateRange(
-            @Param("inventory") Inventory inventory,
-            @Param("startDate") LocalDateTime startDate,
-            @Param("endDate") LocalDateTime endDate
-    );
-
+        @Query("""
+                        SELECT COALESCE(SUM(s.totalProfit), 0)
+                        FROM Sale s
+                        WHERE s.inventory = :inventory
+                        AND s.date >= :startDate
+                        AND s.date < :endDate
+                        """)
+        BigDecimal getTotalProfitByDateRange(
+                        @Param("inventory") Inventory inventory,
+                        @Param("startDate") LocalDateTime startDate,
+                        @Param("endDate") LocalDateTime endDate);
 
 }

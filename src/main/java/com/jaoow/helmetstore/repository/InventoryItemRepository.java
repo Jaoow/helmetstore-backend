@@ -22,14 +22,15 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, Lo
     @Query("""
             WITH SalesSummary AS (
                 SELECT
-                    s.productVariant.id AS variantId,
+                    si.productVariant.id AS variantId,
                     MAX(s.date) AS lastSaleDate,
-                    SUM(s.quantity) AS totalSold,
-                    SUM(s.unitPrice * s.quantity) AS totalRevenue,
-                    SUM(s.totalProfit) AS totalProfit
+                    SUM(si.quantity) AS totalSold,
+                    SUM(si.totalItemPrice) AS totalRevenue,
+                    SUM(si.totalItemProfit) AS totalProfit
                 FROM Sale s
+                JOIN s.items si
                 WHERE s.inventory = :inventory
-                GROUP BY s.productVariant.id
+                GROUP BY si.productVariant.id
             ),
             StockSummary AS (
                 SELECT
@@ -127,16 +128,17 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, Lo
     @Query("""
                 WITH SalesSummary AS (
                      SELECT
-                         s.productVariant.id AS variantId,
+                         si.productVariant.id AS variantId,
                          MAX(s.date) AS lastSaleDate,
-                         SUM(s.quantity) AS totalSold,
-                         SUM(s.unitPrice * s.quantity) AS totalRevenue,
-                         SUM(s.totalProfit) AS totalProfit
+                         SUM(si.quantity) AS totalSold,
+                         SUM(si.totalItemPrice) AS totalRevenue,
+                         SUM(si.totalItemProfit) AS totalProfit
                      FROM Sale s
-                     JOIN ProductVariant pv ON pv.id = s.productVariant.id
+                     JOIN s.items si
+                     JOIN ProductVariant pv ON pv.id = si.productVariant.id
                      JOIN InventoryItem ii ON ii.productVariant.id = pv.id
                      WHERE ii.inventory = :inventory
-                     GROUP BY s.productVariant.id
+                     GROUP BY si.productVariant.id
                  )
                  SELECT
                     p.id AS productId,

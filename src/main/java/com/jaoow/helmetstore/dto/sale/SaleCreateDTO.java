@@ -18,19 +18,14 @@ import java.util.List;
 @Builder
 public class SaleCreateDTO {
 
-    @NotNull
+    @NotNull(message = "Data da venda é obrigatória")
     private LocalDateTime date;
 
-    @NotNull
-    private Long variantId;
+    @NotEmpty(message = "Deve haver pelo menos um item na venda")
+    @Valid
+    private List<SaleItemCreateDTO> items;
 
-    @Min(1)
-    private int quantity;
-
-    @DecimalMin("0.0")
-    private BigDecimal unitPrice;
-
-    @NotEmpty
+    @NotEmpty(message = "Deve haver pelo menos um método de pagamento")
     @Valid
     private List<SalePaymentCreateDTO> payments;
 }

@@ -1,0 +1,4 @@
+ALTER TABLE sale 
+DROP COLUMN IF EXISTS product_variant_id,
+DROP COLUMN IF EXISTS quantity,
+DROP COLUMN IF EXISTS unit_price;

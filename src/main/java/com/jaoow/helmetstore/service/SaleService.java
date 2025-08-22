@@ -3,21 +3,18 @@ package com.jaoow.helmetstore.service;
 import com.jaoow.helmetstore.cache.CacheNames;
 import com.jaoow.helmetstore.dto.reference.SimpleProductDTO;
 import com.jaoow.helmetstore.dto.reference.SimpleProductVariantDTO;
-import com.jaoow.helmetstore.dto.sale.SaleCreateDTO;
-import com.jaoow.helmetstore.dto.sale.SalePaymentCreateDTO;
-import com.jaoow.helmetstore.dto.sale.SaleHistoryResponse;
-import com.jaoow.helmetstore.dto.sale.SaleDetailDTO;
-import com.jaoow.helmetstore.dto.sale.SalePaymentDTO;
-import com.jaoow.helmetstore.dto.sale.SaleResponseDTO;
+import com.jaoow.helmetstore.dto.sale.*;
 import com.jaoow.helmetstore.exception.InsufficientStockException;
 import com.jaoow.helmetstore.exception.ProductNotFoundException;
 import com.jaoow.helmetstore.exception.ResourceNotFoundException;
 import com.jaoow.helmetstore.helper.InventoryHelper;
+import com.jaoow.helmetstore.helper.SaleCalculationHelper;
 import com.jaoow.helmetstore.model.ProductVariant;
 import com.jaoow.helmetstore.model.Sale;
-import com.jaoow.helmetstore.model.sale.SalePayment;
 import com.jaoow.helmetstore.model.inventory.Inventory;
 import com.jaoow.helmetstore.model.inventory.InventoryItem;
+import com.jaoow.helmetstore.model.sale.SaleItem;
+import com.jaoow.helmetstore.model.sale.SalePayment;
 import com.jaoow.helmetstore.repository.InventoryItemRepository;
 import com.jaoow.helmetstore.repository.ProductVariantRepository;
 import com.jaoow.helmetstore.repository.SaleRepository;
@@ -32,6 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.security.Principal;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -42,6 +40,7 @@ public class SaleService {
 
         private final ModelMapper modelMapper;
         private final InventoryHelper inventoryHelper;
+        private final SaleCalculationHelper saleCalculationHelper;
         private final SaleRepository saleRepository;
         private final ProductVariantRepository productVariantRepository;
         private final InventoryItemRepository inventoryItemRepository;
@@ -51,7 +50,7 @@ public class SaleService {
         @PreAuthorize("hasRole('ADMIN')")
         public List<SaleResponseDTO> findAll() {
                 return saleRepository.findAll().stream()
-                                .map(sale -> modelMapper.map(sale, SaleResponseDTO.class))
+                                .map(this::convertToSaleResponseDTO)
                                 .collect(Collectors.toList());
         }
 
@@ -65,51 +64,76 @@ public class SaleService {
         @Transactional
         public SaleResponseDTO save(SaleCreateDTO dto, Principal principal) {
                 Inventory inventory = inventoryHelper.getInventoryFromPrincipal(principal);
+                return saveMultiProductSale(dto, principal, inventory);
+        }
 
-                ProductVariant variant = getProductVariantOrThrow(dto.getVariantId());
-                InventoryItem item = getInventoryItemOrThrow(inventory, variant);
-                validateStock(item, dto.getQuantity());
+        private SaleResponseDTO saveMultiProductSale(SaleCreateDTO dto, Principal principal, Inventory inventory) {
+                // Validate and prepare sale items
+                List<SaleItem> saleItems = new ArrayList<>();
+                BigDecimal totalAmount = BigDecimal.ZERO;
+                BigDecimal totalProfit = BigDecimal.ZERO;
 
-                Sale sale = modelMapper.map(dto, Sale.class);
-                sale.setId(null);
-                sale.setInventory(inventory);
-                sale.setProductVariant(variant);
+                // Create sale entity
+                Sale sale = Sale.builder()
+                                .date(dto.getDate())
+                                .inventory(inventory)
+                                .items(saleItems)
+                                .build();
 
-                BigDecimal profit = calculateTotalProfit(dto.getUnitPrice(), item.getLastPurchasePrice(),
-                                dto.getQuantity());
-                sale.setTotalProfit(profit);
+                // Process each item
+                for (SaleItemCreateDTO itemDTO : dto.getItems()) {
+                        ProductVariant variant = getProductVariantOrThrow(itemDTO.getVariantId());
+                        InventoryItem inventoryItem = getInventoryItemOrThrow(inventory, variant);
+                        validateStock(inventoryItem, itemDTO.getQuantity());
 
-                item.setQuantity(item.getQuantity() - dto.getQuantity());
-                inventoryItemRepository.save(item);
+                        // Create sale item
+                        SaleItem saleItem = SaleItem.builder()
+                                        .sale(sale)
+                                        .productVariant(variant)
+                                        .quantity(itemDTO.getQuantity())
+                                        .unitPrice(itemDTO.getUnitPrice())
+                                        .build();
+
+                        // Calculate values
+                        saleCalculationHelper.populateSaleItemCalculations(saleItem, inventoryItem);
+                        saleItems.add(saleItem);
+
+                        // Update stock
+                        inventoryItem.setQuantity(inventoryItem.getQuantity() - itemDTO.getQuantity());
+                        inventoryItemRepository.save(inventoryItem);
+
+                        // Accumulate totals
+                        totalAmount = totalAmount.add(saleItem.getTotalItemPrice());
+                        totalProfit = totalProfit.add(saleItem.getTotalItemProfit());
+                }
+
+                // Set sale totals
+                sale.setTotalAmount(totalAmount);
+                sale.setTotalProfit(totalProfit);
 
                 // Validate payments sum equals total to be received
-                BigDecimal saleTotal = dto.getUnitPrice().multiply(BigDecimal.valueOf(dto.getQuantity()));
-                BigDecimal paymentsSum = dto.getPayments().stream().map(SalePaymentCreateDTO::getAmount).reduce(
-                                BigDecimal.ZERO,
-                                BigDecimal::add);
-                if (saleTotal.compareTo(paymentsSum) != 0) {
+                if (!saleCalculationHelper.validatePaymentsSum(totalAmount, dto.getPayments())) {
+                        BigDecimal paymentsSum = saleCalculationHelper.calculatePaymentsSum(dto.getPayments());
                         throw new IllegalArgumentException("A soma dos pagamentos (" + paymentsSum
-                                        + ") deve ser igual ao total da venda (" + saleTotal + ").");
+                                        + ") deve ser igual ao total da venda (" + totalAmount + ").");
                 }
 
                 // Map payments
-                final Sale saleRef = sale;
                 List<SalePayment> payments = dto.getPayments().stream()
                                 .filter(Objects::nonNull)
                                 .map(p -> SalePayment.builder()
-                                                .sale(saleRef)
+                                                .sale(sale)
                                                 .paymentMethod(p.getPaymentMethod())
                                                 .amount(p.getAmount())
                                                 .build())
                                 .collect(Collectors.toList());
                 sale.setPayments(payments);
 
-                sale = saleRepository.save(sale);
-                transactionService.recordTransactionFromSale(sale, principal); // must be called after sale is saved to
-                                                                               // ensure
-                                                                               // transaction ID is set
+                // Save sale
+                Sale savedSale = saleRepository.save(sale);
+                transactionService.recordTransactionFromSale(savedSale, principal);
 
-                return modelMapper.map(sale, SaleResponseDTO.class);
+                return convertToSaleResponseDTO(savedSale);
         }
 
         @Caching(evict = {
@@ -126,79 +150,93 @@ public class SaleService {
                 Sale sale = saleRepository.findByIdAndInventory(saleId, inventory)
                                 .orElseThrow(() -> new ResourceNotFoundException("Sale not found with ID: " + saleId));
 
-                ProductVariant oldVariant = sale.getProductVariant();
-                InventoryItem oldItem = getInventoryItemOrThrow(inventory, oldVariant);
+                return updateMultiProductSale(sale, dto, principal, inventory);
+        }
 
-                int oldQty = sale.getQuantity();
-                int newQty = dto.getQuantity();
-
-                if (!dto.getVariantId().equals(oldVariant.getId())) {
-                        oldItem.setQuantity(oldItem.getQuantity() + oldQty);
-                        inventoryItemRepository.save(oldItem);
-
-                        ProductVariant newVariant = getProductVariantOrThrow(dto.getVariantId());
-                        InventoryItem newItem = getInventoryItemOrThrow(inventory, newVariant);
-                        validateStock(newItem, newQty);
-
-                        newItem.setQuantity(newItem.getQuantity() - newQty);
-                        inventoryItemRepository.save(newItem);
-
-                        sale.setProductVariant(newVariant);
-
-                        BigDecimal profit = calculateTotalProfit(dto.getUnitPrice(), newItem.getLastPurchasePrice(),
-                                        newQty);
-                        sale.setTotalProfit(profit);
-                } else {
-                        int diff = newQty - oldQty;
-                        if (diff > 0) {
-                                validateStock(oldItem, diff);
+        private SaleResponseDTO updateMultiProductSale(Sale sale, SaleCreateDTO dto, Principal principal,
+                        Inventory inventory) {
+                // Restore stock from old items
+                if (sale.getItems() != null) {
+                        for (SaleItem oldItem : sale.getItems()) {
+                                InventoryItem inventoryItem = getInventoryItemOrThrow(inventory,
+                                                oldItem.getProductVariant());
+                                inventoryItem.setQuantity(inventoryItem.getQuantity() + oldItem.getQuantity());
+                                inventoryItemRepository.save(inventoryItem);
                         }
-
-                        oldItem.setQuantity(oldItem.getQuantity() - diff);
-                        inventoryItemRepository.save(oldItem);
-
-                        BigDecimal profit = calculateTotalProfit(dto.getUnitPrice(), oldItem.getLastPurchasePrice(),
-                                        newQty);
-                        sale.setTotalProfit(profit);
                 }
 
-                sale.setQuantity(newQty);
-                sale.setUnitPrice(dto.getUnitPrice());
+                // Clear old items
+                if (sale.getItems() != null) {
+                        sale.getItems().clear();
+                } else {
+                        sale.setItems(new ArrayList<>());
+                }
+
+                // Process new items
+                BigDecimal totalAmount = BigDecimal.ZERO;
+                BigDecimal totalProfit = BigDecimal.ZERO;
+
+                for (SaleItemCreateDTO itemDTO : dto.getItems()) {
+                        ProductVariant variant = getProductVariantOrThrow(itemDTO.getVariantId());
+                        InventoryItem inventoryItem = getInventoryItemOrThrow(inventory, variant);
+                        validateStock(inventoryItem, itemDTO.getQuantity());
+
+                        // Create new sale item
+                        SaleItem saleItem = SaleItem.builder()
+                                        .sale(sale)
+                                        .productVariant(variant)
+                                        .quantity(itemDTO.getQuantity())
+                                        .unitPrice(itemDTO.getUnitPrice())
+                                        .build();
+
+                        // Calculate values
+                        saleCalculationHelper.populateSaleItemCalculations(saleItem, inventoryItem);
+                        sale.getItems().add(saleItem);
+
+                        // Update stock
+                        inventoryItem.setQuantity(inventoryItem.getQuantity() - itemDTO.getQuantity());
+                        inventoryItemRepository.save(inventoryItem);
+
+                        // Accumulate totals
+                        totalAmount = totalAmount.add(saleItem.getTotalItemPrice());
+                        totalProfit = totalProfit.add(saleItem.getTotalItemProfit());
+                }
+
+                // Update sale
                 sale.setDate(dto.getDate());
+                sale.setTotalAmount(totalAmount);
+                sale.setTotalProfit(totalProfit);
 
                 // Validate payments sum equals total to be received
-                BigDecimal saleTotal = dto.getUnitPrice().multiply(BigDecimal.valueOf(dto.getQuantity()));
-                BigDecimal paymentsSum = dto.getPayments().stream().map(SalePaymentCreateDTO::getAmount).reduce(
-                                BigDecimal.ZERO,
-                                BigDecimal::add);
-                if (saleTotal.compareTo(paymentsSum) != 0) {
+                if (!saleCalculationHelper.validatePaymentsSum(totalAmount, dto.getPayments())) {
+                        BigDecimal paymentsSum = saleCalculationHelper.calculatePaymentsSum(dto.getPayments());
                         throw new IllegalArgumentException("A soma dos pagamentos (" + paymentsSum
-                                        + ") deve ser igual ao total da venda (" + saleTotal + ").");
+                                        + ") deve ser igual ao total da venda (" + totalAmount + ").");
                 }
 
                 // Replace payments without changing the collection reference
                 // (orphanRemoval-safe)
-                final Sale saleRef2 = sale;
                 List<SalePayment> newPayments = dto.getPayments().stream()
                                 .filter(Objects::nonNull)
                                 .map(p -> SalePayment.builder()
-                                                .sale(saleRef2)
+                                                .sale(sale)
                                                 .paymentMethod(p.getPaymentMethod())
                                                 .amount(p.getAmount())
                                                 .build())
                                 .collect(Collectors.toList());
 
                 if (sale.getPayments() == null) {
-                        sale.setPayments(new java.util.ArrayList<>());
+                        sale.setPayments(new ArrayList<>());
                 }
                 sale.getPayments().clear();
                 sale.getPayments().addAll(newPayments);
 
                 // Update transactions linked to sale by removing and creating new ones
                 transactionService.removeTransactionLinkedToSale(sale);
-                sale = saleRepository.save(sale);
-                transactionService.recordTransactionFromSale(sale, principal);
-                return modelMapper.map(sale, SaleResponseDTO.class);
+                Sale updatedSale = saleRepository.save(sale);
+                transactionService.recordTransactionFromSale(updatedSale, principal);
+
+                return convertToSaleResponseDTO(updatedSale);
         }
 
         @Caching(evict = {
@@ -214,14 +252,21 @@ public class SaleService {
                 Sale sale = saleRepository.findByIdAndInventory(id, inventory)
                                 .orElseThrow(() -> new ResourceNotFoundException("Sale not found with ID: " + id));
 
-                InventoryItem item = inventoryItemRepository
-                                .findByInventoryAndProductVariant(sale.getInventory(), sale.getProductVariant())
-                                .orElseThrow(() -> new ResourceNotFoundException(
-                                                "Inventory item not found for variant ID: "
-                                                                + sale.getProductVariant().getId()));
+                // Restore stock from all items
+                if (sale.getItems() != null && !sale.getItems().isEmpty()) {
+                        for (SaleItem saleItem : sale.getItems()) {
+                                InventoryItem inventoryItem = inventoryItemRepository
+                                                .findByInventoryAndProductVariant(sale.getInventory(),
+                                                                saleItem.getProductVariant())
+                                                .orElseThrow(() -> new ResourceNotFoundException(
+                                                                "Inventory item not found for variant ID: "
+                                                                                + saleItem.getProductVariant()
+                                                                                                .getId()));
 
-                item.setQuantity(item.getQuantity() + sale.getQuantity());
-                inventoryItemRepository.save(item);
+                                inventoryItem.setQuantity(inventoryItem.getQuantity() + saleItem.getQuantity());
+                                inventoryItemRepository.save(inventoryItem);
+                        }
+                }
 
                 transactionService.removeTransactionLinkedToSale(sale);
                 saleRepository.delete(sale);
@@ -234,17 +279,32 @@ public class SaleService {
                 List<Sale> sales = saleRepository.findAllByInventoryWithProductVariantsAndProducts(inventory);
 
                 List<SaleResponseDTO> saleDTOs = sales.stream()
-                                .map(sale -> modelMapper.map(sale, SaleResponseDTO.class))
+                                .map(this::convertToSaleResponseDTO)
                                 .collect(Collectors.toList());
 
+                // Collect all product variants from all sale items (including multiple items
+                // per sale)
                 List<SimpleProductVariantDTO> productVariants = sales.stream()
-                                .map(Sale::getProductVariant)
+                                .flatMap(sale -> {
+                                        if (sale.getItems() != null && !sale.getItems().isEmpty()) {
+                                                return sale.getItems().stream()
+                                                                .map(item -> item.getProductVariant());
+                                        }
+                                        return java.util.stream.Stream.empty();
+                                })
                                 .distinct()
                                 .map(variant -> modelMapper.map(variant, SimpleProductVariantDTO.class))
                                 .collect(Collectors.toList());
 
+                // Collect all products from all sale items
                 List<SimpleProductDTO> products = sales.stream()
-                                .map(sale -> sale.getProductVariant().getProduct())
+                                .flatMap(sale -> {
+                                        if (sale.getItems() != null && !sale.getItems().isEmpty()) {
+                                                return sale.getItems().stream()
+                                                                .map(item -> item.getProductVariant().getProduct());
+                                        }
+                                        return java.util.stream.Stream.empty();
+                                })
                                 .distinct()
                                 .map(product -> modelMapper.map(product, SimpleProductDTO.class))
                                 .collect(Collectors.toList());
@@ -258,17 +318,7 @@ public class SaleService {
                 Sale sale = saleRepository.findByIdAndInventory(id, inventory)
                                 .orElseThrow(() -> new ResourceNotFoundException("Sale not found with ID: " + id));
 
-                SaleDetailDTO dto = modelMapper.map(sale, SaleDetailDTO.class);
-                // Map payments explicitly
-                List<SalePaymentDTO> paymentDTOs = sale.getPayments() == null ? java.util.Collections.emptyList()
-                                : sale.getPayments().stream()
-                                                .map(p -> SalePaymentDTO.builder()
-                                                                .paymentMethod(p.getPaymentMethod())
-                                                                .amount(p.getAmount())
-                                                                .build())
-                                                .collect(Collectors.toList());
-                dto.setPayments(paymentDTOs);
-                return dto;
+                return convertToSaleDetailDTO(sale);
         }
 
         private ProductVariant getProductVariantOrThrow(Long variantId) {
@@ -289,7 +339,84 @@ public class SaleService {
                 }
         }
 
-        private BigDecimal calculateTotalProfit(BigDecimal unitPrice, BigDecimal lastPurchasePrice, int quantity) {
-                return unitPrice.subtract(lastPurchasePrice).multiply(BigDecimal.valueOf(quantity));
+        /**
+         * Converts a Sale entity to SaleResponseDTO
+         */
+        private SaleResponseDTO convertToSaleResponseDTO(Sale sale) {
+                SaleResponseDTO dto = SaleResponseDTO.builder()
+                                .id(sale.getId())
+                                .date(sale.getDate())
+                                .totalAmount(sale.getTotalAmount())
+                                .totalProfit(sale.getTotalProfit())
+                                .build();
+
+                // Convert sale items
+                if (sale.getItems() != null && !sale.getItems().isEmpty()) {
+                        List<SaleItemDTO> itemDTOs = sale.getItems().stream()
+                                        .map(this::convertToSaleItemDTO)
+                                        .collect(Collectors.toList());
+                        dto.setItems(itemDTOs);
+
+                        // For backward compatibility, set first item's data as sale data
+                        SaleItem firstItem = sale.getItems().get(0);
+                        dto.setProductVariantId(firstItem.getProductVariant().getId());
+                        dto.setQuantity(firstItem.getQuantity());
+                        dto.setUnitPrice(firstItem.getUnitPrice());
+                }
+
+                return dto;
+        }
+
+        /**
+         * Converts a SaleItem entity to SaleItemDTO
+         */
+        private SaleItemDTO convertToSaleItemDTO(SaleItem saleItem) {
+                return SaleItemDTO.builder()
+                                .id(saleItem.getId())
+                                .productVariantId(saleItem.getProductVariant().getId())
+                                .quantity(saleItem.getQuantity())
+                                .unitPrice(saleItem.getUnitPrice())
+                                .unitProfit(saleItem.getUnitProfit())
+                                .totalItemPrice(saleItem.getTotalItemPrice())
+                                .totalItemProfit(saleItem.getTotalItemProfit())
+                                .build();
+        }
+
+        /**
+         * Converts a Sale entity to SaleDetailDTO
+         */
+        private SaleDetailDTO convertToSaleDetailDTO(Sale sale) {
+                SaleDetailDTO dto = SaleDetailDTO.builder()
+                                .id(sale.getId())
+                                .date(sale.getDate())
+                                .totalAmount(sale.getTotalAmount())
+                                .totalProfit(sale.getTotalProfit())
+                                .build();
+
+                // Convert sale items
+                if (sale.getItems() != null && !sale.getItems().isEmpty()) {
+                        List<SaleItemDTO> itemDTOs = sale.getItems().stream()
+                                        .map(this::convertToSaleItemDTO)
+                                        .collect(Collectors.toList());
+                        dto.setItems(itemDTOs);
+
+                        // For backward compatibility, set first item's data as sale data
+                        SaleItem firstItem = sale.getItems().get(0);
+                        dto.setProductVariantId(firstItem.getProductVariant().getId());
+                        dto.setQuantity(firstItem.getQuantity());
+                        dto.setUnitPrice(firstItem.getUnitPrice());
+                }
+
+                // Map payments explicitly
+                List<SalePaymentDTO> paymentDTOs = sale.getPayments() == null ? java.util.Collections.emptyList()
+                                : sale.getPayments().stream()
+                                                .map(p -> SalePaymentDTO.builder()
+                                                                .paymentMethod(p.getPaymentMethod())
+                                                                .amount(p.getAmount())
+                                                                .build())
+                                                .collect(Collectors.toList());
+                dto.setPayments(paymentDTOs);
+
+                return dto;
         }
 }
