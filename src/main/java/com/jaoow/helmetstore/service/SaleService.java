@@ -335,7 +335,9 @@ public class SaleService {
         private void validateStock(InventoryItem item, int requiredQuantity) {
                 if (item.getQuantity() < requiredQuantity) {
                         throw new InsufficientStockException(
-                                        "Insufficient stock for variant ID: " + item.getProductVariant().getId());
+                                        "Insufficient stock for variant ID: " + item.getProductVariant().getId() +
+                                                        ". Available: " + item.getQuantity() + ", Required: "
+                                                        + requiredQuantity);
                 }
         }
 
@@ -357,11 +359,6 @@ public class SaleService {
                                         .collect(Collectors.toList());
                         dto.setItems(itemDTOs);
 
-                        // For backward compatibility, set first item's data as sale data
-                        SaleItem firstItem = sale.getItems().get(0);
-                        dto.setProductVariantId(firstItem.getProductVariant().getId());
-                        dto.setQuantity(firstItem.getQuantity());
-                        dto.setUnitPrice(firstItem.getUnitPrice());
                 }
 
                 return dto;
@@ -400,11 +397,21 @@ public class SaleService {
                                         .collect(Collectors.toList());
                         dto.setItems(itemDTOs);
 
-                        // For backward compatibility, set first item's data as sale data
-                        SaleItem firstItem = sale.getItems().get(0);
-                        dto.setProductVariantId(firstItem.getProductVariant().getId());
-                        dto.setQuantity(firstItem.getQuantity());
-                        dto.setUnitPrice(firstItem.getUnitPrice());
+                        // Collect all product variants from sale items
+                        List<SimpleProductVariantDTO> productVariants = sale.getItems().stream()
+                                        .map(SaleItem::getProductVariant)
+                                        .distinct()
+                                        .map(variant -> modelMapper.map(variant, SimpleProductVariantDTO.class))
+                                        .collect(Collectors.toList());
+                        dto.setProductVariants(productVariants);
+
+                        // Collect all products from sale items
+                        List<SimpleProductDTO> products = sale.getItems().stream()
+                                        .map(item -> item.getProductVariant().getProduct())
+                                        .distinct()
+                                        .map(product -> modelMapper.map(product, SimpleProductDTO.class))
+                                        .collect(Collectors.toList());
+                        dto.setProducts(products);
                 }
 
                 // Map payments explicitly

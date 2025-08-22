@@ -19,12 +19,4 @@ public class SaleResponseDTO {
     private BigDecimal totalAmount;
     private BigDecimal totalProfit;
 
-    // Campos de compatibilidade com o modelo antigo
-    @Deprecated
-    private Long productVariantId;
-    @Deprecated
-    private int quantity;
-    @Deprecated
-    private BigDecimal unitPrice;
-
 }

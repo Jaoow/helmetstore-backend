@@ -1,5 +1,7 @@
 package com.jaoow.helmetstore.dto.sale;
 
+import com.jaoow.helmetstore.dto.reference.SimpleProductDTO;
+import com.jaoow.helmetstore.dto.reference.SimpleProductVariantDTO;
 import lombok.*;
 
 import java.math.BigDecimal;
@@ -19,11 +21,6 @@ public class SaleDetailDTO {
     private BigDecimal totalProfit;
     private List<SalePaymentDTO> payments;
 
-    // Campos de compatibilidade com o modelo antigo
-    @Deprecated
-    private Long productVariantId;
-    @Deprecated
-    private int quantity;
-    @Deprecated
-    private BigDecimal unitPrice;
+    private List<SimpleProductDTO> products;
+    private List<SimpleProductVariantDTO> productVariants;
 }
