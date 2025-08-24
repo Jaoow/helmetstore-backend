@@ -17,4 +17,9 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
     @Query("SELECT a FROM Account a WHERE a.user.email = :userEmail")
     @EntityGraph(attributePaths = "transactions")
     List<Account> findAllByUserEmail(@Param("userEmail") String userEmail);
+
+    @Query("SELECT a FROM Account a WHERE a.user.email = :userEmail AND a.type = :type")
+    @EntityGraph(attributePaths = "transactions")
+    Optional<Account> findByUserEmailAndTypeWithTransactions(@Param("userEmail") String userEmail,
+            @Param("type") AccountType type);
 }

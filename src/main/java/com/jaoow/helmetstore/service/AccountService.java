@@ -28,6 +28,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Transactional
 public class AccountService {
 
     private final AccountRepository accountRepository;
@@ -62,8 +63,10 @@ public class AccountService {
         }
 
         Optional<Account> accountOpt = switch (paymentMethod) {
-            case CASH -> accountRepository.findByUserEmailAndType(principal.getName(), AccountType.CASH);
-            case PIX, CARD -> accountRepository.findByUserEmailAndType(principal.getName(), AccountType.BANK);
+            case CASH ->
+                accountRepository.findByUserEmailAndTypeWithTransactions(principal.getName(), AccountType.CASH);
+            case PIX, CARD ->
+                accountRepository.findByUserEmailAndTypeWithTransactions(principal.getName(), AccountType.BANK);
         };
 
         return accountOpt.or(() -> {
@@ -86,7 +89,6 @@ public class AccountService {
         });
     }
 
-    @Transactional
     public void convertBalance(BalanceConversionDTO conversionDTO, Principal principal) {
         if (conversionDTO == null || principal == null || principal.getName() == null) {
             throw new IllegalArgumentException("Parâmetros inválidos para conversão de saldo.");
@@ -106,7 +108,7 @@ public class AccountService {
         }
 
         Account fromAccount = accountRepository
-                .findByUserEmailAndType(principal.getName(), conversionDTO.getFromAccountType())
+                .findByUserEmailAndTypeWithTransactions(principal.getName(), conversionDTO.getFromAccountType())
                 .orElseGet(() -> {
                     Account newAccount = Account.builder()
                             .type(conversionDTO.getFromAccountType())
@@ -203,7 +205,7 @@ public class AccountService {
             return BigDecimal.ZERO;
         }
 
-        Optional<Account> accountOpt = accountRepository.findByUserEmailAndType(userEmail, accountType);
+        Optional<Account> accountOpt = accountRepository.findByUserEmailAndTypeWithTransactions(userEmail, accountType);
         if (accountOpt.isEmpty()) {
             return BigDecimal.ZERO;
         }
