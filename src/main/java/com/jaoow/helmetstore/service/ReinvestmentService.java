@@ -34,6 +34,7 @@ public class ReinvestmentService {
         private final CacheInvalidationService cacheInvalidationService;
         private final SaleRepository saleRepository;
         private final InventoryHelper inventoryHelper;
+        private final AccountService accountService;
 
         private static final DateTimeFormatter MONTH_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM");
         private static final BigDecimal MAX_REINVESTMENT_PERCENTAGE = new BigDecimal("100");
@@ -109,11 +110,11 @@ public class ReinvestmentService {
                         Account cashAccount,
                         BigDecimal availableProfit) {
 
-                // Obter saldos atuais das contas (reutilizando método existente)
-                BigDecimal bankBalance = accountRepository.findBalanceByUserEmailAndType(
-                                bankAccount.getUser().getEmail(), AccountType.BANK).orElse(BigDecimal.ZERO);
-                BigDecimal cashBalance = accountRepository.findBalanceByUserEmailAndType(
-                                cashAccount.getUser().getEmail(), AccountType.CASH).orElse(BigDecimal.ZERO);
+                // Obter saldos atuais das contas usando o novo método
+                BigDecimal bankBalance = accountService.calculateAccountBalanceByType(
+                                bankAccount.getUser().getEmail(), AccountType.BANK);
+                BigDecimal cashBalance = accountService.calculateAccountBalanceByType(
+                                cashAccount.getUser().getEmail(), AccountType.CASH);
 
                 log.info("Saldos das contas - BANK: R$ {}, CASH: R$ {}, Valor a reinvestir: R$ {}",
                                 bankBalance, cashBalance, reinvestmentAmount);

@@ -4,7 +4,6 @@ import com.jaoow.helmetstore.model.user.User;
 import jakarta.persistence.*;
 import lombok.*;
 
-import java.math.BigDecimal;
 import java.util.List;
 
 @Entity
@@ -22,9 +21,6 @@ public class Account {
     @Column(nullable = false)
     @Enumerated(EnumType.STRING)
     private AccountType type;
-
-    @Column(nullable = false)
-    private BigDecimal balance;
 
     @OneToMany(mappedBy = "account", fetch = FetchType.LAZY)
     @OrderBy("date DESC")

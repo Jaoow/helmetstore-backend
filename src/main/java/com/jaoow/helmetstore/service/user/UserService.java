@@ -89,7 +89,6 @@ public class UserService implements UserDetailsService {
         Set<Account> accounts = Arrays.stream(AccountType.values())
                 .map(accountType -> Account.builder()
                         .type(accountType)
-                        .balance(BigDecimal.ZERO)
                         .user(finalUser)
                         .build())
                 .collect(Collectors.toSet());

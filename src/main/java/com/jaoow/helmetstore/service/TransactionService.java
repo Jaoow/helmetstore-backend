@@ -39,7 +39,6 @@ public class TransactionService {
                                                 "No account found for the given payment method."));
 
                 transaction.setAccount(account);
-                accountService.applyTransaction(account, transaction);
                 transactionRepository.save(transaction);
 
                 // Invalidate financial caches after creating a transaction
@@ -61,14 +60,14 @@ public class TransactionService {
                                         .type(TransactionType.INCOME)
                                         .detail(TransactionDetail.SALE)
                                         .description(SALE_REFERENCE_PREFIX
-                                                        + formatProductVariantName(sale.getItems().getFirst().getProductVariant()))
+                                                        + formatProductVariantName(
+                                                                        sale.getItems().getFirst().getProductVariant()))
                                         .amount(payment.getAmount())
                                         .paymentMethod(payment.getPaymentMethod())
                                         .reference(SALE_REFERENCE_PREFIX + sale.getId())
                                         .account(account)
                                         .build();
 
-                        accountService.applyTransaction(account, transaction);
                         transactionRepository.save(transaction);
                 });
 
@@ -95,7 +94,6 @@ public class TransactionService {
                                 .account(account)
                                 .build();
 
-                accountService.applyTransaction(account, transaction); // maybe should be before save?
                 transactionRepository.save(transaction);
 
                 // Invalidate financial caches after recording transaction from purchase order
@@ -115,16 +113,13 @@ public class TransactionService {
                                         "Você não pode editar transações vinculadas a vendas ou pedidos de compra.");
                 }
 
-                accountService.revertTransaction(transaction.getAccount(), transaction);
+                // Update the existing transaction with new data
                 modelMapper.map(dto, transaction);
-
                 Account account = accountService.findAccountByPaymentMethodAndUser(dto.getPaymentMethod(), principal)
                                 .orElseThrow(() -> new AccountNotFoundException(
                                                 "Nenhuma conta encontrada para o método de pagamento informado."));
 
                 transaction.setAccount(account);
-                accountService.applyTransaction(account, transaction);
-
                 transactionRepository.save(transaction);
 
                 // Invalidate financial caches after updating a transaction
@@ -144,7 +139,6 @@ public class TransactionService {
                                         "Você não pode excluir transações vinculadas a vendas ou pedidos de compra.");
                 }
 
-                accountService.revertTransaction(transaction.getAccount(), transaction);
                 transactionRepository.delete(transaction);
                 // Invalidate financial caches after deleting a transaction
                 cacheInvalidationService.invalidateFinancialCaches();
@@ -158,7 +152,6 @@ public class TransactionService {
                                                 "Transaction not found for purchase order ID: "
                                                                 + purchaseOrder.getId()));
 
-                accountService.revertTransaction(transaction.getAccount(), transaction);
                 transactionRepository.delete(transaction);
                 // Invalidate financial caches after removing transaction linked to purchase
                 // order
@@ -175,7 +168,6 @@ public class TransactionService {
                 }
 
                 transactions.forEach(transaction -> {
-                        accountService.revertTransaction(transaction.getAccount(), transaction);
                         transactionRepository.delete(transaction);
                 });
                 // Invalidate financial caches after removing transaction linked to sale
