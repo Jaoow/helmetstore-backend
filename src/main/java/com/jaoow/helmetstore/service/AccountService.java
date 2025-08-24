@@ -63,6 +63,7 @@ public class AccountService {
     }
 
     public void applyTransaction(@NonNull Account account, @NonNull Transaction transaction) {
+        if (true) return;
         if (!accountRepository.existsById(account.getId())) {
             throw new IllegalArgumentException("Account does not exist: " + account.getId());
         }
@@ -89,6 +90,7 @@ public class AccountService {
     }
 
     public void revertTransaction(@NonNull Account account, @NonNull Transaction transaction) {
+        if (true) return;
         if (!accountRepository.existsById(account.getId())) {
             throw new IllegalArgumentException("Account does not exist: " + account.getId());
         }

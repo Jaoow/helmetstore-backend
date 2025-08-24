@@ -6,10 +6,13 @@ import com.jaoow.helmetstore.dto.balance.CashFlowSummaryDTO;
 import com.jaoow.helmetstore.dto.balance.MonthlyCashFlowDTO;
 import com.jaoow.helmetstore.dto.balance.MonthlyProfitDTO;
 import com.jaoow.helmetstore.dto.balance.ProfitSummaryDTO;
+import com.jaoow.helmetstore.dto.balance.ReinvestmentRequestDTO;
+import com.jaoow.helmetstore.dto.balance.ReinvestmentResponseDTO;
 import com.jaoow.helmetstore.dto.balance.TransactionCreateDTO;
 import com.jaoow.helmetstore.service.AccountService;
 import com.jaoow.helmetstore.service.CashFlowService;
 import com.jaoow.helmetstore.service.ProfitTrackingService;
+import com.jaoow.helmetstore.service.ReinvestmentService;
 import com.jaoow.helmetstore.service.TransactionService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -29,6 +32,7 @@ public class AccountController {
     private final TransactionService transactionService;
     private final CashFlowService cashFlowService;
     private final ProfitTrackingService profitTrackingService;
+    private final ReinvestmentService reinvestmentService;
 
     @GetMapping
     public List<AccountInfo> getAccountInfo(Principal principal) {
@@ -125,6 +129,12 @@ public class AccountController {
     @PostMapping("/convert/balance")
     public void convertBalance(@Valid @RequestBody BalanceConversionDTO conversionDTO, Principal principal) {
         accountService.convertBalance(conversionDTO, principal);
+    }
+
+    @PostMapping("/reinvest")
+    public ReinvestmentResponseDTO reinvest(@Valid @RequestBody ReinvestmentRequestDTO reinvestmentRequestDTO,
+            Principal principal) {
+        return reinvestmentService.executeReinvestment(reinvestmentRequestDTO, principal);
     }
 
 }

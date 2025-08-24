@@ -17,22 +17,23 @@ public class CacheInvalidationService {
     private final CacheManager cacheManager;
 
     /**
-     * Invalidate all financial-related caches when a transaction is created, updated, or deleted
+     * Invalidate all financial-related caches when a transaction is created,
+     * updated, or deleted
      */
     public void invalidateFinancialCaches() {
         log.info("Invalidating all financial caches due to transaction change");
-        
+
         // Invalidate cash flow related caches
         invalidateCache(CacheNames.CASH_FLOW_SUMMARY);
         invalidateCache(CacheNames.MONTHLY_CASH_FLOW);
         invalidateCache(CacheNames.FINANCIAL_SUMMARY);
         invalidateCache(CacheNames.PROFIT_CALCULATION);
         invalidateCache(CacheNames.CASH_FLOW_CALCULATION);
-        
+
         // Invalidate profit tracking related caches
         invalidateCache(CacheNames.PROFIT_SUMMARY);
         invalidateCache(CacheNames.MONTHLY_PROFIT);
-        
+
         // Also invalidate revenue and profit cache as it might be affected
         invalidateCache(CacheNames.REVENUE_AND_PROFIT);
     }
@@ -78,6 +79,16 @@ public class CacheInvalidationService {
     }
 
     /**
+     * Invalidate all caches (nuclear option for major changes)
+     */
+    public void invalidateAllCaches() {
+        log.info("Invalidating ALL caches due to major financial changes");
+        for (String cacheName : CacheNames.ALL_CACHE_NAMES) {
+            invalidateCache(cacheName);
+        }
+    }
+
+    /**
      * Helper method to invalidate a specific cache
      */
     private void invalidateCache(String cacheName) {
@@ -93,4 +104,4 @@ public class CacheInvalidationService {
             log.error("Error clearing cache {}: {}", cacheName, e.getMessage(), e);
         }
     }
-} 
+}
