@@ -23,228 +23,226 @@ import java.util.List;
 @RequiredArgsConstructor
 public class TransactionService {
 
-        private static final String SALE_REFERENCE_PREFIX = "SALE#";
-        private static final String PURCHASE_ORDER_REFERENCE_PREFIX = "PURCHASE_ORDER#";
+    private static final String SALE_REFERENCE_PREFIX = "SALE#";
+    private static final String PURCHASE_ORDER_REFERENCE_PREFIX = "PURCHASE_ORDER#";
 
-        private final TransactionRepository transactionRepository;
-        private final AccountService accountService;
-        private final ModelMapper modelMapper;
-        private final CacheInvalidationService cacheInvalidationService;
+    private final TransactionRepository transactionRepository;
+    private final AccountService accountService;
+    private final ModelMapper modelMapper;
+    private final CacheInvalidationService cacheInvalidationService;
 
-        @Transactional
-        public void createManualTransaction(TransactionCreateDTO dto, Principal principal) {
-                Transaction transaction = modelMapper.map(dto, Transaction.class);
-                Account account = accountService.findAccountByPaymentMethodAndUser(dto.getPaymentMethod(), principal)
-                                .orElseThrow(() -> new AccountNotFoundException(
-                                                "No account found for the given payment method."));
+    @Transactional
+    public void createManualTransaction(TransactionCreateDTO dto, Principal principal) {
+        Transaction transaction = modelMapper.map(dto, Transaction.class);
+        Account account = accountService.findAccountByPaymentMethodAndUser(dto.getPaymentMethod(), principal)
+                .orElseThrow(() -> new AccountNotFoundException(
+                        "No account found for the given payment method."));
 
-                transaction.setAccount(account);
-                transactionRepository.save(transaction);
+        transaction.setAccount(account);
+        transactionRepository.save(transaction);
 
-                // Invalidate financial caches after creating a transaction
-                cacheInvalidationService.invalidateFinancialCaches();
+        // Invalidate financial caches after creating a transaction
+        cacheInvalidationService.invalidateFinancialCaches();
+    }
+
+    @Transactional
+    public void recordTransactionFromSale(Sale sale, Principal principal) {
+        LocalDateTime date = sale.getDate();
+
+        sale.getPayments().forEach(payment -> {
+            Account account = accountService
+                    .findAccountByPaymentMethodAndUser(payment.getPaymentMethod(), principal)
+                    .orElseThrow(() -> new AccountNotFoundException(
+                            "No account found for the given payment method."));
+
+            Transaction transaction = Transaction.builder()
+                    .date(date)
+                    .type(TransactionType.INCOME)
+                    .detail(TransactionDetail.SALE)
+                    .description(SALE_REFERENCE_PREFIX
+                            + formatProductVariantName(
+                                    sale.getItems().getFirst().getProductVariant()))
+                    .amount(payment.getAmount())
+                    .paymentMethod(payment.getPaymentMethod())
+                    .reference(SALE_REFERENCE_PREFIX + sale.getId())
+                    .account(account)
+                    .build();
+
+            transactionRepository.save(transaction);
+        });
+
+        // Invalidate financial caches after recording transaction from sale
+        cacheInvalidationService.invalidateFinancialCaches();
+    }
+
+    @Transactional
+    public void recordTransactionFromPurchaseOrder(PurchaseOrder purchaseOrder, Principal principal) {
+        // Assuming all purchase orders are paid via PIX
+        // TODO: Handle different payment methods for purchase orders
+        Account account = accountService.findAccountByPaymentMethodAndUser(PaymentMethod.PIX, principal)
+                .orElseThrow(() -> new AccountNotFoundException(
+                        "No account found for the given payment method."));
+
+        Transaction transaction = Transaction.builder()
+                .date(purchaseOrder.getDate().atStartOfDay())
+                .type(TransactionType.EXPENSE)
+                .detail(TransactionDetail.COST_OF_GOODS_SOLD)
+                .description(PURCHASE_ORDER_REFERENCE_PREFIX + purchaseOrder.getOrderNumber())
+                .amount(purchaseOrder.getTotalAmount())
+                .paymentMethod(PaymentMethod.PIX)
+                .reference(PURCHASE_ORDER_REFERENCE_PREFIX + purchaseOrder.getId())
+                .account(account)
+                .build();
+
+        transactionRepository.save(transaction);
+
+        // Invalidate financial caches after recording transaction from purchase order
+        cacheInvalidationService.invalidateFinancialCaches();
+    }
+
+    @Transactional
+    public void updateTransaction(Long transactionId, TransactionCreateDTO dto, Principal principal) {
+        Transaction transaction = transactionRepository
+                .findByIdAndAccountUserEmail(transactionId, principal.getName())
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Transação não encontrada com ID: " + transactionId));
+
+        if (transaction.getDetail() == TransactionDetail.SALE
+                || transaction.getDetail() == TransactionDetail.COST_OF_GOODS_SOLD) {
+            throw new IllegalArgumentException(
+                    "Você não pode editar transações vinculadas a vendas ou pedidos de compra.");
         }
 
-        @Transactional
-        public void recordTransactionFromSale(Sale sale, Principal principal) {
-                LocalDateTime date = sale.getDate();
+        // Update the existing transaction with new data
+        modelMapper.map(dto, transaction);
+        Account account = accountService.findAccountByPaymentMethodAndUser(dto.getPaymentMethod(), principal)
+                .orElseThrow(() -> new AccountNotFoundException(
+                        "Nenhuma conta encontrada para o método de pagamento informado."));
 
-                sale.getPayments().forEach(payment -> {
-                        Account account = accountService
-                                        .findAccountByPaymentMethodAndUser(payment.getPaymentMethod(), principal)
-                                        .orElseThrow(() -> new AccountNotFoundException(
-                                                        "No account found for the given payment method."));
+        transaction.setAccount(account);
+        transactionRepository.save(transaction);
 
-                        Transaction transaction = Transaction.builder()
-                                        .date(date)
-                                        .type(TransactionType.INCOME)
-                                        .detail(TransactionDetail.SALE)
-                                        .description(SALE_REFERENCE_PREFIX
-                                                        + formatProductVariantName(
-                                                                        sale.getItems().getFirst().getProductVariant()))
-                                        .amount(payment.getAmount())
-                                        .paymentMethod(payment.getPaymentMethod())
-                                        .reference(SALE_REFERENCE_PREFIX + sale.getId())
-                                        .account(account)
-                                        .build();
+        // Invalidate financial caches after updating a transaction
+        cacheInvalidationService.invalidateFinancialCaches();
+    }
 
-                        transactionRepository.save(transaction);
-                });
+    @Transactional
+    public void deleteTransactionById(Long transactionId, Principal principal) {
+        Transaction transaction = transactionRepository
+                .findByIdAndAccountUserEmail(transactionId, principal.getName())
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Transaction not found with ID: " + transactionId));
 
-                // Invalidate financial caches after recording transaction from sale
-                cacheInvalidationService.invalidateFinancialCaches();
+        if (transaction.getDetail() == TransactionDetail.SALE
+                || transaction.getDetail() == TransactionDetail.COST_OF_GOODS_SOLD) {
+            throw new IllegalArgumentException(
+                    "Você não pode excluir transações vinculadas a vendas ou pedidos de compra.");
         }
 
-        @Transactional
-        public void recordTransactionFromPurchaseOrder(PurchaseOrder purchaseOrder, Principal principal) {
-                // Assuming all purchase orders are paid via PIX
-                // TODO: Handle different payment methods for purchase orders
-                Account account = accountService.findAccountByPaymentMethodAndUser(PaymentMethod.PIX, principal)
-                                .orElseThrow(() -> new AccountNotFoundException(
-                                                "No account found for the given payment method."));
+        transactionRepository.delete(transaction);
+        // Invalidate financial caches after deleting a transaction
+        cacheInvalidationService.invalidateFinancialCaches();
+    }
 
-                Transaction transaction = Transaction.builder()
-                                .date(purchaseOrder.getDate().atStartOfDay())
-                                .type(TransactionType.EXPENSE)
-                                .detail(TransactionDetail.COST_OF_GOODS_SOLD)
-                                .description(PURCHASE_ORDER_REFERENCE_PREFIX + purchaseOrder.getOrderNumber())
-                                .amount(purchaseOrder.getTotalAmount())
-                                .paymentMethod(PaymentMethod.PIX)
-                                .reference(PURCHASE_ORDER_REFERENCE_PREFIX + purchaseOrder.getId())
-                                .account(account)
-                                .build();
+    @Transactional
+    public void removeTransactionLinkedToPurchaseOrder(PurchaseOrder purchaseOrder) {
+        String reference = PURCHASE_ORDER_REFERENCE_PREFIX + purchaseOrder.getId();
+        Transaction transaction = transactionRepository.findByReference(reference)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Transaction not found for purchase order ID: "
+                                + purchaseOrder.getId()));
 
-                transactionRepository.save(transaction);
+        transactionRepository.delete(transaction);
+        // Invalidate financial caches after removing transaction linked to purchase
+        // order
+        cacheInvalidationService.invalidateFinancialCaches();
+    }
 
-                // Invalidate financial caches after recording transaction from purchase order
-                cacheInvalidationService.invalidateFinancialCaches();
+    @Transactional
+    public void removeTransactionLinkedToSale(Sale sale) {
+        String reference = SALE_REFERENCE_PREFIX + sale.getId();
+        List<Transaction> transactions = transactionRepository.findAllByReference(reference);
+
+        if (transactions.isEmpty()) {
+            throw new IllegalArgumentException("Transaction not found for sale ID: " + sale.getId());
         }
 
-        @Transactional
-        public void updateTransaction(Long transactionId, TransactionCreateDTO dto, Principal principal) {
-                Transaction transaction = transactionRepository
-                                .findByIdAndAccountUserEmail(transactionId, principal.getName())
-                                .orElseThrow(() -> new IllegalArgumentException(
-                                                "Transação não encontrada com ID: " + transactionId));
+        transactionRepository.deleteAll(transactions);
+        // Invalidate financial caches after removing transaction linked to sale
+        cacheInvalidationService.invalidateFinancialCaches();
+    }
 
-                if (transaction.getDetail() == TransactionDetail.SALE
-                                || transaction.getDetail() == TransactionDetail.COST_OF_GOODS_SOLD) {
-                        throw new IllegalArgumentException(
-                                        "Você não pode editar transações vinculadas a vendas ou pedidos de compra.");
-                }
+    /**
+     * Calculate profit using the formula:
+     * profit = sum(SALE) - sum(all transactions where deductsFromProfit = true)
+     */
+    @Cacheable(value = com.jaoow.helmetstore.cache.CacheNames.PROFIT_CALCULATION, key = "#principal.name")
+    public BigDecimal calculateProfit(Principal principal) {
+        List<Transaction> transactions = transactionRepository.findByAccountUserEmail(principal.getName());
 
-                // Update the existing transaction with new data
-                modelMapper.map(dto, transaction);
-                Account account = accountService.findAccountByPaymentMethodAndUser(dto.getPaymentMethod(), principal)
-                                .orElseThrow(() -> new AccountNotFoundException(
-                                                "Nenhuma conta encontrada para o método de pagamento informado."));
+        BigDecimal salesTotal = transactions.stream()
+                .filter(t -> t.getDetail() == TransactionDetail.SALE)
+                .map(Transaction::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-                transaction.setAccount(account);
-                transactionRepository.save(transaction);
+        // TODO: Refactor this to use a more specific method for profit-deducting
+        // transactions
+        // Currently, it assumes all transactions that affect withdrawable profit are
+        // profit-deducting
+        BigDecimal expensesTotal = transactions.stream()
+                .filter(Transaction::affectsWithdrawableProfit)
+                .map(Transaction::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-                // Invalidate financial caches after updating a transaction
-                cacheInvalidationService.invalidateFinancialCaches();
-        }
+        return salesTotal.subtract(expensesTotal);
+    }
 
-        @Transactional
-        public void deleteTransactionById(Long transactionId, Principal principal) {
-                Transaction transaction = transactionRepository
-                                .findByIdAndAccountUserEmail(transactionId, principal.getName())
-                                .orElseThrow(() -> new IllegalArgumentException(
-                                                "Transaction not found with ID: " + transactionId));
+    /**
+     * Calculate total cash flow (all income minus all expenses)
+     */
+    @Cacheable(value = com.jaoow.helmetstore.cache.CacheNames.CASH_FLOW_CALCULATION, key = "#principal.name")
+    public BigDecimal calculateCashFlow(Principal principal) {
+        List<Transaction> transactions = transactionRepository.findByAccountUserEmail(principal.getName());
 
-                if (transaction.getDetail() == TransactionDetail.SALE
-                                || transaction.getDetail() == TransactionDetail.COST_OF_GOODS_SOLD) {
-                        throw new IllegalArgumentException(
-                                        "Você não pode excluir transações vinculadas a vendas ou pedidos de compra.");
-                }
+        BigDecimal incomeTotal = transactions.stream()
+                .filter(t -> t.getType() == TransactionType.INCOME)
+                .map(Transaction::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-                transactionRepository.delete(transaction);
-                // Invalidate financial caches after deleting a transaction
-                cacheInvalidationService.invalidateFinancialCaches();
-        }
+        BigDecimal expenseTotal = transactions.stream()
+                .filter(t -> t.getType() == TransactionType.EXPENSE)
+                .map(Transaction::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        @Transactional
-        public void removeTransactionLinkedToPurchaseOrder(PurchaseOrder purchaseOrder) {
-                String reference = PURCHASE_ORDER_REFERENCE_PREFIX + purchaseOrder.getId();
-                Transaction transaction = transactionRepository.findByReference(reference)
-                                .orElseThrow(() -> new IllegalArgumentException(
-                                                "Transaction not found for purchase order ID: "
-                                                                + purchaseOrder.getId()));
+        return incomeTotal.subtract(expenseTotal);
+    }
 
-                transactionRepository.delete(transaction);
-                // Invalidate financial caches after removing transaction linked to purchase
-                // order
-                cacheInvalidationService.invalidateFinancialCaches();
-        }
+    /**
+     * Get financial summary with both profit and cash flow
+     */
+    @Cacheable(value = com.jaoow.helmetstore.cache.CacheNames.FINANCIAL_SUMMARY, key = "#principal.name")
+    public FinancialSummary calculateFinancialSummary(Principal principal) {
+        BigDecimal profit = calculateProfit(principal);
+        BigDecimal cashFlow = calculateCashFlow(principal);
 
-        @Transactional
-        public void removeTransactionLinkedToSale(Sale sale) {
-                String reference = SALE_REFERENCE_PREFIX + sale.getId();
-                List<Transaction> transactions = transactionRepository.findAllByReference(reference);
+        return FinancialSummary.builder()
+                .profit(profit)
+                .cashFlow(cashFlow)
+                .build();
+    }
 
-                if (transactions.isEmpty()) {
-                        throw new IllegalArgumentException("Transaction not found for sale ID: " + sale.getId());
-                }
+    private String formatProductVariantName(ProductVariant productVariant) {
+        Product product = productVariant.getProduct();
+        return "%s#%s#%s".formatted(product.getModel(), product.getColor(), productVariant.getSize());
+    }
 
-                transactions.forEach(transaction -> {
-                        transactionRepository.delete(transaction);
-                });
-                // Invalidate financial caches after removing transaction linked to sale
-                cacheInvalidationService.invalidateFinancialCaches();
-        }
-
-        /**
-         * Calculate profit using the formula:
-         * profit = sum(SALE) - sum(all transactions where deductsFromProfit = true)
-         */
-        @Cacheable(value = com.jaoow.helmetstore.cache.CacheNames.PROFIT_CALCULATION, key = "#principal.name")
-        public BigDecimal calculateProfit(Principal principal) {
-                List<Transaction> transactions = transactionRepository.findByAccountUserEmail(principal.getName());
-
-                BigDecimal salesTotal = transactions.stream()
-                                .filter(t -> t.getDetail() == TransactionDetail.SALE)
-                                .map(Transaction::getAmount)
-                                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-                // TODO: Refactor this to use a more specific method for profit-deducting
-                // transactions
-                // Currently, it assumes all transactions that affect withdrawable profit are
-                // profit-deducting
-                BigDecimal expensesTotal = transactions.stream()
-                                .filter(Transaction::affectsWithdrawableProfit)
-                                .map(Transaction::getAmount)
-                                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-                return salesTotal.subtract(expensesTotal);
-        }
-
-        /**
-         * Calculate total cash flow (all income minus all expenses)
-         */
-        @Cacheable(value = com.jaoow.helmetstore.cache.CacheNames.CASH_FLOW_CALCULATION, key = "#principal.name")
-        public BigDecimal calculateCashFlow(Principal principal) {
-                List<Transaction> transactions = transactionRepository.findByAccountUserEmail(principal.getName());
-
-                BigDecimal incomeTotal = transactions.stream()
-                                .filter(t -> t.getType() == TransactionType.INCOME)
-                                .map(Transaction::getAmount)
-                                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-                BigDecimal expenseTotal = transactions.stream()
-                                .filter(t -> t.getType() == TransactionType.EXPENSE)
-                                .map(Transaction::getAmount)
-                                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-                return incomeTotal.subtract(expenseTotal);
-        }
-
-        /**
-         * Get financial summary with both profit and cash flow
-         */
-        @Cacheable(value = com.jaoow.helmetstore.cache.CacheNames.FINANCIAL_SUMMARY, key = "#principal.name")
-        public FinancialSummary calculateFinancialSummary(Principal principal) {
-                BigDecimal profit = calculateProfit(principal);
-                BigDecimal cashFlow = calculateCashFlow(principal);
-
-                return FinancialSummary.builder()
-                                .profit(profit)
-                                .cashFlow(cashFlow)
-                                .build();
-        }
-
-        private String formatProductVariantName(ProductVariant productVariant) {
-                Product product = productVariant.getProduct();
-                return "%s#%s#%s".formatted(product.getModel(), product.getColor(), productVariant.getSize());
-        }
-
-        /**
-         * Financial summary data class
-         */
-        @lombok.Data
-        @lombok.Builder
-        public static class FinancialSummary {
-                private BigDecimal profit;
-                private BigDecimal cashFlow;
-        }
+    /**
+     * Financial summary data class
+     */
+    @lombok.Data
+    @lombok.Builder
+    public static class FinancialSummary {
+        private BigDecimal profit;
+        private BigDecimal cashFlow;
+    }
 }
