@@ -9,7 +9,9 @@ import com.jaoow.helmetstore.model.balance.Transaction;
 import com.jaoow.helmetstore.model.balance.TransactionType;
 import com.jaoow.helmetstore.repository.AccountRepository;
 import com.jaoow.helmetstore.repository.TransactionRepository;
+import com.jaoow.helmetstore.service.AccountService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
@@ -25,20 +27,20 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class CashFlowService {
 
     private final TransactionRepository transactionRepository;
     private final AccountRepository accountRepository;
     private final ModelMapper modelMapper;
+    private final AccountService accountService;
 
     @Cacheable(value = com.jaoow.helmetstore.cache.CacheNames.CASH_FLOW_SUMMARY, key = "#principal.name")
     public CashFlowSummaryDTO getCashFlowSummary(Principal principal) {
         String userEmail = principal.getName();
 
-        BigDecimal bankBalance = accountRepository.findBalanceByUserEmailAndType(userEmail, AccountType.BANK)
-                .orElse(BigDecimal.ZERO);
-        BigDecimal cashBalance = accountRepository.findBalanceByUserEmailAndType(userEmail, AccountType.CASH)
-                .orElse(BigDecimal.ZERO);
+        BigDecimal bankBalance = accountService.calculateAccountBalanceByType(userEmail, AccountType.BANK);
+        BigDecimal cashBalance = accountService.calculateAccountBalanceByType(userEmail, AccountType.CASH);
         BigDecimal totalBalance = bankBalance.add(cashBalance);
 
         List<Transaction> allTransactions = transactionRepository.findByAccountUserEmail(userEmail);

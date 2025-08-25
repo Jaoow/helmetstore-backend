@@ -21,12 +21,14 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.security.Principal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Transactional
 public class AccountService {
 
     private final AccountRepository accountRepository;
@@ -36,97 +38,80 @@ public class AccountService {
     private final CacheInvalidationService cacheInvalidationService;
 
     public List<AccountInfo> getAccountInfo(Principal principal) {
+        if (principal == null || principal.getName() == null) {
+            return new ArrayList<>();
+        }
+
         List<Account> accounts = accountRepository.findAllByUserEmail(principal.getName());
+        if (accounts == null || accounts.isEmpty()) {
+            return new ArrayList<>();
+        }
+
         return accounts.stream()
-                .map(account -> modelMapper.map(account, AccountInfo.class))
+                .filter(account -> account != null)
+                .map(account -> {
+                    AccountInfo accountInfo = modelMapper.map(account, AccountInfo.class);
+                    accountInfo.setBalance(calculateAccountBalance(account));
+                    return accountInfo;
+                })
                 .collect(Collectors.toList());
     }
 
     Optional<Account> findAccountByPaymentMethodAndUser(PaymentMethod paymentMethod, Principal principal) {
+        if (paymentMethod == null || principal == null || principal.getName() == null) {
+            return Optional.empty();
+        }
+
         Optional<Account> accountOpt = switch (paymentMethod) {
-            case CASH -> accountRepository.findByUserEmailAndType(principal.getName(), AccountType.CASH);
-            case PIX, CARD -> accountRepository.findByUserEmailAndType(principal.getName(), AccountType.BANK);
+            case CASH ->
+                accountRepository.findByUserEmailAndTypeWithTransactions(principal.getName(), AccountType.CASH);
+            case PIX, CARD ->
+                accountRepository.findByUserEmailAndTypeWithTransactions(principal.getName(), AccountType.BANK);
         };
 
         return accountOpt.or(() -> {
-            User user = userService.findUserByEmail(principal.getName());
+            try {
+                User user = userService.findUserByEmail(principal.getName());
+                if (user == null) {
+                    return Optional.empty();
+                }
 
-            AccountType type = paymentMethod == PaymentMethod.CASH ? AccountType.CASH : AccountType.BANK;
-            Account account = Account.builder()
-                    .type(type)
-                    .balance(BigDecimal.ZERO)
-                    .user(user)
-                    .build();
+                AccountType type = paymentMethod == PaymentMethod.CASH ? AccountType.CASH : AccountType.BANK;
+                Account account = Account.builder()
+                        .type(type)
+                        .user(user)
+                        .build();
 
-            return Optional.of(accountRepository.save(account));
+                return Optional.of(accountRepository.save(account));
+            } catch (Exception e) {
+                return Optional.empty();
+            }
         });
     }
 
-    public void applyTransaction(@NonNull Account account, @NonNull Transaction transaction) {
-        if (!accountRepository.existsById(account.getId())) {
-            throw new IllegalArgumentException("Account does not exist: " + account.getId());
-        }
-
-        if (transaction.getAccount() == null || !transaction.getAccount().getId().equals(account.getId())) {
-            throw new IllegalArgumentException("Transaction account does not match the provided account.");
-        }
-
-        switch (transaction.getType()) {
-            case INCOME -> {
-                BigDecimal newBalance = account.getBalance().add(transaction.getAmount());
-                account.setBalance(newBalance);
-            }
-            case EXPENSE -> {
-                BigDecimal newBalance = account.getBalance().subtract(transaction.getAmount());
-                if (newBalance.compareTo(BigDecimal.ZERO) < 0) {
-                    throw new IllegalArgumentException("Insufficient funds for this transaction.");
-                }
-                account.setBalance(newBalance);
-            }
-        }
-
-        accountRepository.save(account);
-    }
-
-    public void revertTransaction(@NonNull Account account, @NonNull Transaction transaction) {
-        if (!accountRepository.existsById(account.getId())) {
-            throw new IllegalArgumentException("Account does not exist: " + account.getId());
-        }
-
-        if (transaction.getAccount() == null || !transaction.getAccount().getId().equals(account.getId())) {
-            throw new IllegalArgumentException("Transaction account does not match the provided account.");
-        }
-
-        switch (transaction.getType()) {
-            case INCOME -> {
-                BigDecimal newBalance = account.getBalance().subtract(transaction.getAmount());
-                if (newBalance.compareTo(BigDecimal.ZERO) < 0) {
-                    throw new IllegalArgumentException("Insufficient funds for this transaction.");
-                }
-                account.setBalance(newBalance);
-            }
-            case EXPENSE -> {
-                BigDecimal newBalance = account.getBalance().add(transaction.getAmount());
-                account.setBalance(newBalance);
-            }
-        }
-        accountRepository.save(account);
-    }
-
-    @Transactional
     public void convertBalance(BalanceConversionDTO conversionDTO, Principal principal) {
-        User user = userService.findUserByEmail(principal.getName());
+        if (conversionDTO == null || principal == null || principal.getName() == null) {
+            throw new IllegalArgumentException("Parâmetros inválidos para conversão de saldo.");
+        }
 
         if (conversionDTO.getFromAccountType() == conversionDTO.getToAccountType()) {
             throw new IllegalArgumentException("Os tipos de conta de origem e destino devem ser diferentes.");
         }
 
+        if (conversionDTO.getAmount() == null || conversionDTO.getAmount().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("O valor para conversão deve ser maior que zero.");
+        }
+
+        User user = userService.findUserByEmail(principal.getName());
+        if (user == null) {
+            throw new IllegalArgumentException("Usuário não encontrado.");
+        }
+
         Account fromAccount = accountRepository
-                .findByUserEmailAndType(principal.getName(), conversionDTO.getFromAccountType())
+                .findByUserEmailAndTypeWithTransactions(principal.getName(), conversionDTO.getFromAccountType())
                 .orElseGet(() -> {
                     Account newAccount = Account.builder()
                             .type(conversionDTO.getFromAccountType())
-                            .balance(BigDecimal.ZERO)
                             .user(user)
                             .build();
                     return accountRepository.save(newAccount);
@@ -137,13 +122,14 @@ public class AccountService {
                 .orElseGet(() -> {
                     Account newAccount = Account.builder()
                             .type(conversionDTO.getToAccountType())
-                            .balance(BigDecimal.ZERO)
                             .user(user)
                             .build();
                     return accountRepository.save(newAccount);
                 });
 
-        if (fromAccount.getBalance().compareTo(conversionDTO.getAmount()) < 0) {
+        // Verificar se há saldo suficiente na conta de origem
+        BigDecimal fromAccountBalance = calculateAccountBalance(fromAccount);
+        if (fromAccountBalance.compareTo(conversionDTO.getAmount()) < 0) {
             throw new IllegalArgumentException("Saldo insuficiente na conta de origem para realizar a conversão.");
         }
 
@@ -180,12 +166,49 @@ public class AccountService {
                 .account(toAccount)
                 .build();
 
-        applyTransaction(fromAccount, fromTransaction);
-        applyTransaction(toAccount, toTransaction);
-
         transactionRepository.save(fromTransaction);
         transactionRepository.save(toTransaction);
 
         cacheInvalidationService.invalidateFinancialCaches();
+    }
+
+    /**
+     * Calcula o saldo atual de uma conta baseado nas transações
+     */
+    public BigDecimal calculateAccountBalance(Account account) {
+        if (account == null) {
+            return BigDecimal.ZERO;
+        }
+
+        List<Transaction> transactions = account.getTransactions();
+        if (transactions == null || transactions.isEmpty()) {
+            return BigDecimal.ZERO;
+        }
+
+        return transactions.stream()
+                .filter(transaction -> transaction != null && transaction.getAmount() != null)
+                .map(transaction -> {
+                    if (transaction.getType() == TransactionType.INCOME) {
+                        return transaction.getAmount();
+                    } else {
+                        return transaction.getAmount().negate();
+                    }
+                })
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    /**
+     * Calcula o saldo de uma conta por tipo para um usuário específico
+     */
+    public BigDecimal calculateAccountBalanceByType(String userEmail, AccountType accountType) {
+        if (userEmail == null || accountType == null) {
+            return BigDecimal.ZERO;
+        }
+
+        Optional<Account> accountOpt = accountRepository.findByUserEmailAndTypeWithTransactions(userEmail, accountType);
+        if (accountOpt.isEmpty()) {
+            return BigDecimal.ZERO;
+        }
+        return calculateAccountBalance(accountOpt.get());
     }
 }
