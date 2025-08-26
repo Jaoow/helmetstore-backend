@@ -10,6 +10,6 @@ import java.util.List;
 @EqualsAndHashCode(callSuper = true)
 @RequiredArgsConstructor
 @AllArgsConstructor
-public class ShareLinkStoreViewDTO extends ShareLinkDTO {
+public class CatalogStoreViewDTO extends CatalogDTO {
     public List<PublicProductStockDto> products;
 }

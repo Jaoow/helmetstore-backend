@@ -5,10 +5,10 @@ import jakarta.validation.constraints.*;
 import lombok.Data;
 
 @Data
-public class ShareLinkUpdateDTO {
+public class CatalogUpdateDTO {
 
-    @Size(min = 1, max = 100, message = "O nome da loja deve ter no máximo 100 caracteres.")
-    @Pattern(regexp = ".*(?:[a-zA-Z].*){4,}", message = "O nome da loja deve conter pelo menos 4 letras.")
+    @Size(min = 1, max = 100, message = "O nome do catálogo deve ter no máximo 100 caracteres.")
+    @Pattern(regexp = ".*(?:[a-zA-Z].*){4,}", message = "O nome do catálogo deve conter pelo menos 4 letras.")
     private String storeName;
 
     @Pattern(regexp = "^[a-zA-Z0-9_-]{4,50}$", message = "O token deve conter entre 4 e 50 caracteres alfanuméricos, hífens ou underscores.")

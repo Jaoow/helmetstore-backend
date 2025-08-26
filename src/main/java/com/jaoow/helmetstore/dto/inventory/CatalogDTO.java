@@ -3,7 +3,7 @@ package com.jaoow.helmetstore.dto.inventory;
 import lombok.Data;
 
 @Data
-public class ShareLinkDTO {
+public class CatalogDTO {
     private String storeName;
     private String token;
     private Boolean active;

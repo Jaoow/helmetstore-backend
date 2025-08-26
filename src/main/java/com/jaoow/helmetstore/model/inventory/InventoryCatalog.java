@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class InventoryShareLink {
+public class InventoryCatalog {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

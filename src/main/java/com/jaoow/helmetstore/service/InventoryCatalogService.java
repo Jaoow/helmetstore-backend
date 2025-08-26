@@ -3,18 +3,18 @@ package com.jaoow.helmetstore.service;
 import com.jaoow.helmetstore.dto.info.BaseProductStockVariantDto;
 import com.jaoow.helmetstore.dto.info.PublicProductStockDto;
 import com.jaoow.helmetstore.dto.info.PublicProductStockVariantDto;
-import com.jaoow.helmetstore.dto.inventory.ShareLinkDTO;
-import com.jaoow.helmetstore.dto.inventory.ShareLinkCreateDTO;
-import com.jaoow.helmetstore.dto.inventory.ShareLinkStoreViewDTO;
-import com.jaoow.helmetstore.dto.inventory.ShareLinkUpdateDTO;
+import com.jaoow.helmetstore.dto.inventory.CatalogDTO;
+import com.jaoow.helmetstore.dto.inventory.CatalogCreateDTO;
+import com.jaoow.helmetstore.dto.inventory.CatalogStoreViewDTO;
+import com.jaoow.helmetstore.dto.inventory.CatalogUpdateDTO;
 import com.jaoow.helmetstore.dto.summary.ProductVariantStockSummary;
-import com.jaoow.helmetstore.exception.ShareLinkNotFoundException;
+import com.jaoow.helmetstore.exception.CatalogNotFoundException;
 import com.jaoow.helmetstore.exception.TokenAlreadyInUseException;
 import com.jaoow.helmetstore.helper.InventoryHelper;
 import com.jaoow.helmetstore.model.inventory.Inventory;
-import com.jaoow.helmetstore.model.inventory.InventoryShareLink;
+import com.jaoow.helmetstore.model.inventory.InventoryCatalog;
 import com.jaoow.helmetstore.repository.InventoryItemRepository;
-import com.jaoow.helmetstore.repository.InventoryShareLinkRepository;
+import com.jaoow.helmetstore.repository.InventoryCatalogRepository;
 import lombok.RequiredArgsConstructor;
 import org.modelmapper.ModelMapper;
 import org.springframework.stereotype.Service;
@@ -28,32 +28,32 @@ import static com.jaoow.helmetstore.service.ReportService.EXCLUDED_STATUSES;
 
 @Service
 @RequiredArgsConstructor
-public class InventoryShareLinkService {
+public class InventoryCatalogService {
 
     private final InventoryHelper inventoryHelper;
     private final ModelMapper modelMapper;
-    private final InventoryShareLinkRepository linkRepository;
+    private final InventoryCatalogRepository catalogRepository;
     private final InventoryItemRepository inventoryItemRepository;
 
     @Transactional(readOnly = true)
-    public ShareLinkStoreViewDTO getShareLinkStoreView(String token) {
-        InventoryShareLink shareLink = linkRepository.findByTokenAndActiveTrue(token)
-                .orElseThrow(ShareLinkNotFoundException::new);
+    public CatalogStoreViewDTO getCatalogView(String token) {
+        InventoryCatalog catalog = catalogRepository.findByTokenAndActiveTrue(token)
+                .orElseThrow(CatalogNotFoundException::new);
 
-        ShareLinkStoreViewDTO storeViewDTO = modelMapper.map(shareLink, ShareLinkStoreViewDTO.class);
-        storeViewDTO.setProducts(getPublicProductStockDtos(shareLink));
+        CatalogStoreViewDTO catalogViewDTO = modelMapper.map(catalog, CatalogStoreViewDTO.class);
+        catalogViewDTO.setProducts(getPublicProductStockDtos(catalog));
 
-        if (!shareLink.isShowWhatsappButton()) {
+        if (!catalog.isShowWhatsappButton()) {
             // prevent from showing WhatsApp details if the button is not enabled
-            storeViewDTO.setWhatsappNumber(null);
-            storeViewDTO.setWhatsappMessage(null);
+            catalogViewDTO.setWhatsappNumber(null);
+            catalogViewDTO.setWhatsappMessage(null);
         }
 
-        return storeViewDTO;
+        return catalogViewDTO;
     }
 
-    private ArrayList<PublicProductStockDto> getPublicProductStockDtos(InventoryShareLink link) {
-        Inventory inventory = link.getInventory();
+    private ArrayList<PublicProductStockDto> getPublicProductStockDtos(InventoryCatalog catalog) {
+        Inventory inventory = catalog.getInventory();
         List<ProductVariantStockSummary> projections = inventoryItemRepository
                 .findAllWithStockDetailsByInventory(EXCLUDED_STATUSES, inventory);
 
@@ -67,7 +67,7 @@ public class InventoryShareLinkService {
             productStock.getVariants().add(mapToPublicProductStockVariantDto(summary));
         }
 
-        if (!link.isShowStockQuantity()) {
+        if (!catalog.isShowStockQuantity()) {
             hideStockQuantities(productMap);
         }
 
@@ -101,18 +101,18 @@ public class InventoryShareLinkService {
     }
 
     @Transactional
-    public ShareLinkDTO createShareLink(Principal principal, ShareLinkCreateDTO dto) {
-        if (linkRepository.existsByToken(dto.getToken())) {
+    public CatalogDTO createCatalog(Principal principal, CatalogCreateDTO dto) {
+        if (catalogRepository.existsByToken(dto.getToken())) {
             throw new TokenAlreadyInUseException();
         }
 
         Inventory inventory = inventoryHelper.getInventoryFromPrincipal(principal);
 
-        if (linkRepository.existsByInventory(inventory)) {
-            throw new IllegalStateException("Este inventário já possui um link de compartilhamento.");
+        if (catalogRepository.existsByInventory(inventory)) {
+            throw new IllegalStateException("Este inventário já possui um catálogo.");
         }
 
-        InventoryShareLink link = InventoryShareLink.builder()
+        InventoryCatalog catalog = InventoryCatalog.builder()
                 .inventory(inventory)
                 .token(dto.getToken())
                 .storeName(dto.getStoreName())
@@ -124,64 +124,64 @@ public class InventoryShareLinkService {
                 .showSizeSelector(true)
                 .build();
 
-        link = linkRepository.save(link);
-        return modelMapper.map(link, ShareLinkDTO.class);
+        catalog = catalogRepository.save(catalog);
+        return modelMapper.map(catalog, CatalogDTO.class);
     }
 
     @Transactional
-    public ShareLinkDTO updateShareLink(Principal principal, ShareLinkUpdateDTO dto) {
+    public CatalogDTO updateCatalog(Principal principal, CatalogUpdateDTO dto) {
         Inventory inventory = inventoryHelper.getInventoryFromPrincipal(principal);
 
-        InventoryShareLink link = linkRepository.findByInventory(inventory)
-                .orElseThrow(ShareLinkNotFoundException::new);
+        InventoryCatalog catalog = catalogRepository.findByInventory(inventory)
+                .orElseThrow(CatalogNotFoundException::new);
 
-        if (dto.getToken() != null && !dto.getToken().equals(link.getToken())) {
-            if (linkRepository.existsByToken(dto.getToken())) {
+        if (dto.getToken() != null && !dto.getToken().equals(catalog.getToken())) {
+            if (catalogRepository.existsByToken(dto.getToken())) {
                 throw new TokenAlreadyInUseException();
             }
-            link.setToken(dto.getToken());
+            catalog.setToken(dto.getToken());
         }
 
         if (dto.getStoreName() != null) {
-            link.setStoreName(dto.getStoreName());
+            catalog.setStoreName(dto.getStoreName());
         }
 
         if (dto.getActive() != null) {
-            link.setActive(dto.getActive());
+            catalog.setActive(dto.getActive());
         }
 
         if (dto.getShowStockQuantity() != null) {
-            link.setShowStockQuantity(dto.getShowStockQuantity());
+            catalog.setShowStockQuantity(dto.getShowStockQuantity());
         }
 
         if (dto.getShowPrice() != null) {
-            link.setShowPrice(dto.getShowPrice());
+            catalog.setShowPrice(dto.getShowPrice());
         }
 
         if (dto.getShowWhatsappButton() != null) {
-            link.setShowWhatsappButton(dto.getShowWhatsappButton());
+            catalog.setShowWhatsappButton(dto.getShowWhatsappButton());
         }
 
         if (dto.getShowSizeSelector() != null) {
-            link.setShowSizeSelector(dto.getShowSizeSelector());
+            catalog.setShowSizeSelector(dto.getShowSizeSelector());
         }
 
         if (dto.getWhatsappNumber() != null) {
-            link.setWhatsappNumber(dto.getWhatsappNumber());
+            catalog.setWhatsappNumber(dto.getWhatsappNumber());
         }
 
         if (dto.getWhatsappMessage() != null) {
-            link.setWhatsappMessage(dto.getWhatsappMessage());
+            catalog.setWhatsappMessage(dto.getWhatsappMessage());
         }
 
-        linkRepository.save(link);
-        return modelMapper.map(link, ShareLinkDTO.class);
+        catalogRepository.save(catalog);
+        return modelMapper.map(catalog, CatalogDTO.class);
     }
 
-    public ShareLinkDTO getByUser(Principal principal) {
+    public CatalogDTO getByUser(Principal principal) {
         Inventory inventory = inventoryHelper.getInventoryFromPrincipal(principal);
-        return linkRepository.findByInventory(inventory)
-                .map(link -> modelMapper.map(link, ShareLinkDTO.class))
-                .orElseThrow(ShareLinkNotFoundException::new);
+        return catalogRepository.findByInventory(inventory)
+                .map(catalog -> modelMapper.map(catalog, CatalogDTO.class))
+                .orElseThrow(CatalogNotFoundException::new);
     }
 }

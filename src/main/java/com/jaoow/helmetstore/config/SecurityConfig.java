@@ -26,21 +26,23 @@ import java.util.List;
 
 @Configuration
 @EnableWebSecurity
-@EnableMethodSecurity(
-        securedEnabled = true
-)
+@EnableMethodSecurity(securedEnabled = true)
 public class SecurityConfig {
 
-    private static final String[] PUBLIC_ENDPOINTS = {"/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html", "/swagger-ui/**", "/webjars/**"};
+    private static final String[] PUBLIC_ENDPOINTS = { "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html",
+            "/swagger-ui/**", "/webjars/**" };
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http, JwtRequestFilter jwtRequestFilter, JwtAuthEntryPoint jwtAuthEntryPoint) throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, JwtRequestFilter jwtRequestFilter,
+            JwtAuthEntryPoint jwtAuthEntryPoint) throws Exception {
         http.csrf(AbstractHttpConfigurer::disable)
                 .cors(corsConfigurer -> corsConfigurer.configurationSource(corsConfigurationSource()))
-                .authorizeHttpRequests(auth ->
-                        auth.requestMatchers("/auth/login", "/auth/register", "/auth/refresh-token", "/sharing/public/**", "/hello").permitAll()
-                                .requestMatchers(PUBLIC_ENDPOINTS).permitAll()
-                                .anyRequest().authenticated())
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/auth/login", "/auth/register", "/auth/refresh-token", "/catalog/public/**",
+                                "/hello")
+                        .permitAll()
+                        .requestMatchers(PUBLIC_ENDPOINTS).permitAll()
+                        .anyRequest().authenticated())
                 .exceptionHandling(exception -> exception.authenticationEntryPoint(jwtAuthEntryPoint))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .logout(logout -> logout.logoutUrl("/auth/logout"));
@@ -51,7 +53,8 @@ public class SecurityConfig {
     }
 
     @Bean
-    public AuthenticationManager authenticationManager(AuthenticationConfiguration configuration, UserService userService) throws Exception {
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration configuration,
+            UserService userService) throws Exception {
         DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider();
         authProvider.setUserDetailsService(userService);
         authProvider.setPasswordEncoder(passwordEncoder());
