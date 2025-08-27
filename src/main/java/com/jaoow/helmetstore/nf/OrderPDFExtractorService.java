@@ -36,8 +36,7 @@ public class OrderPDFExtractorService {
         List<OrderItemDTO> items = new ArrayList<>();
         List<String> itemsNotFound = new ArrayList<>();
         
-        // Novos campos da NF-e
-        String invoiceSeries = "";
+        // Campos essenciais para MEI (conforme feedback do usuário)
         String accessKey = "";
         String supplierName = "";
         String supplierTaxId = "";
@@ -46,41 +45,35 @@ public class OrderPDFExtractorService {
             PDFTextStripper pdfStripper = new PDFTextStripper();
             String text = pdfStripper.getText(document).replaceAll("\\r?\\n\\s*", " ");
 
-            // Extrair número da NF-e
+            // Extrair número da NF-e (para controle interno)
             Pattern invoiceNumberPattern = Pattern.compile("NF-e\\s*Nº\\.\\s*([\\d\\.]+)");
             Matcher invoiceNumberMatcher = invoiceNumberPattern.matcher(text);
             if (invoiceNumberMatcher.find()) {
                 invoiceNumber = invoiceNumberMatcher.group(1);
             }
             
-            // Extrair série da NF-e
-            Pattern invoiceSeriesPattern = Pattern.compile("Série\\s*(\\d+)");
-            Matcher invoiceSeriesMatcher = invoiceSeriesPattern.matcher(text);
-            if (invoiceSeriesMatcher.find()) {
-                invoiceSeries = invoiceSeriesMatcher.group(1);
-            }
-            
-            // Extrair chave de acesso (44 dígitos)
+            // Extrair chave de acesso (44 dígitos) - Campo essencial para identificação fiscal
             Pattern accessKeyPattern = Pattern.compile("(\\d{4}\\s+\\d{4}\\s+\\d{4}\\s+\\d{4}\\s+\\d{4}\\s+\\d{4}\\s+\\d{4}\\s+\\d{4}\\s+\\d{4}\\s+\\d{4}\\s+\\d{4})");
             Matcher accessKeyMatcher = accessKeyPattern.matcher(text);
             if (accessKeyMatcher.find()) {
                 accessKey = accessKeyMatcher.group(1).replaceAll("\\s+", "");
             }
             
-            // Extrair nome do emitente/fornecedor
+            // Extrair nome do fornecedor - Para controle de estoque
             Pattern supplierNamePattern = Pattern.compile("EMITENTE[\\s\\S]*?Nome/Razão Social\\s*([\\w\\s]+?)\\s*(?:Nome Fantasia|Inscrição)");
             Matcher supplierNameMatcher = supplierNamePattern.matcher(text);
             if (supplierNameMatcher.find()) {
                 supplierName = supplierNameMatcher.group(1).trim();
             }
             
-            // Extrair CNPJ do emitente
+            // Extrair CNPJ do fornecedor - Para identificação fiscal
             Pattern supplierTaxIdPattern = Pattern.compile("CNPJ\\s*([\\d\\./\\-]+)");
             Matcher supplierTaxIdMatcher = supplierTaxIdPattern.matcher(text);
             if (supplierTaxIdMatcher.find()) {
                 supplierTaxId = supplierTaxIdMatcher.group(1);
             }
 
+            // Extrair dados básicos para controle de estoque
             Pattern purchaseOrderPattern = Pattern
                     .compile("Inf\\.\\s*fisco:\\s*PEDIDO\\s*DE\\s*COMPRA:\\s*([A-Z0-9-]+)");
             Matcher purchaseOrderMatcher = purchaseOrderPattern.matcher(text);
@@ -100,6 +93,7 @@ public class OrderPDFExtractorService {
                 totalPrice = Double.parseDouble(totalMatcher.group(1).replace(".", "").replace(",", "."));
             }
 
+            // Extrair itens para controle de estoque
             Pattern itemPattern = Pattern.compile("(CAP-\\d+[A-Za-z]+)\\s+.*?\\s*(UN \\d{1,3},\\d{4})");
             Matcher itemMatcher = itemPattern.matcher(text);
 
@@ -125,7 +119,6 @@ public class OrderPDFExtractorService {
                 .totalPrice(totalPrice)
                 .items(items)
                 .itemsNotFound(itemsNotFound)
-                .invoiceSeries(invoiceSeries)
                 .accessKey(accessKey)
                 .supplierName(supplierName)
                 .supplierTaxId(supplierTaxId)

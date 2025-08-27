@@ -39,35 +39,24 @@ public class PurchaseOrder {
     @ManyToOne(optional = false)
     private Inventory inventory;
 
-    // Campos da NF-e (Nota Fiscal Eletrônica)
+    // Campos essenciais da NF-e (Nota Fiscal Eletrônica)
+    // Conforme feedback: XML/PDF já contém todos os dados, apenas campos-chave são necessários
     
     /**
-     * Número da NF-e
-     */
-    @Column(name = "invoice_number")
-    private String invoiceNumber;
-    
-    /**
-     * Série da NF-e
-     */
-    @Column(name = "invoice_series")
-    private String invoiceSeries;
-    
-    /**
-     * Chave de acesso da NF-e (44 dígitos)
+     * Chave de acesso da NF-e (44 dígitos) - Campo obrigatório para identificação fiscal
      */
     @Length(min = 44, max = 44, message = "Access key must have exactly 44 digits")
     @Column(name = "access_key", length = 44)
     private String accessKey;
     
     /**
-     * Nome do emitente/fornecedor
+     * Nome do fornecedor - Para controle de estoque e formação de preço
      */
     @Column(name = "supplier_name")
     private String supplierName;
     
     /**
-     * CNPJ ou CPF do emitente
+     * CNPJ ou CPF do fornecedor - Para identificação fiscal
      */
     @Column(name = "supplier_tax_id")
     private String supplierTaxId;
@@ -81,13 +70,13 @@ public class PurchaseOrder {
     private PurchaseCategory purchaseCategory = PurchaseCategory.CNPJ_MEI;
     
     /**
-     * Caminho do arquivo PDF (DANFE)
+     * Caminho do arquivo PDF (DANFE) - Documento fiscal oficial
      */
     @Column(name = "pdf_file_path")
     private String pdfFilePath;
     
     /**
-     * Caminho do arquivo XML da NF-e
+     * Caminho do arquivo XML da NF-e - Contém todos os dados fiscais
      */
     @Column(name = "xml_file_path")
     private String xmlFilePath;

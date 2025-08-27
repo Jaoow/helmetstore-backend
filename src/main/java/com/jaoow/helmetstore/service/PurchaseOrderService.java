@@ -171,9 +171,7 @@ public class PurchaseOrderService {
         Optional.ofNullable(dto.getOrderNumber()).ifPresent(order::setOrderNumber);
         Optional.ofNullable(dto.getDate()).ifPresent(order::setDate);
         
-        // Update NF-e fields
-        Optional.ofNullable(dto.getInvoiceNumber()).ifPresent(order::setInvoiceNumber);
-        Optional.ofNullable(dto.getInvoiceSeries()).ifPresent(order::setInvoiceSeries);
+        // Update essential NF-e fields only
         Optional.ofNullable(dto.getAccessKey()).ifPresent(order::setAccessKey);
         Optional.ofNullable(dto.getSupplierName()).ifPresent(order::setSupplierName);
         Optional.ofNullable(dto.getSupplierTaxId()).ifPresent(order::setSupplierTaxId);

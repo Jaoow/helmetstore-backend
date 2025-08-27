@@ -24,31 +24,21 @@ public class PurchaseOrderUpdateDTO {
     @NotNull
     private PurchaseOrderStatus status;
 
-    // Campos da NF-e (Nota Fiscal Eletrônica)
+    // Campos essenciais da NF-e para controle fiscal MEI
     
     /**
-     * Número da NF-e
-     */
-    private String invoiceNumber;
-    
-    /**
-     * Série da NF-e
-     */
-    private String invoiceSeries;
-    
-    /**
-     * Chave de acesso da NF-e (44 dígitos)
+     * Chave de acesso da NF-e (44 dígitos) - Identificação fiscal obrigatória
      */
     @Length(min = 44, max = 44, message = "Access key must have exactly 44 digits")
     private String accessKey;
     
     /**
-     * Nome do emitente/fornecedor
+     * Nome do fornecedor - Para controle de estoque
      */
     private String supplierName;
     
     /**
-     * CNPJ ou CPF do emitente
+     * CNPJ ou CPF do fornecedor - Para identificação fiscal
      */
     private String supplierTaxId;
     

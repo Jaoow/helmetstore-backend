@@ -23,30 +23,20 @@ public class PurchaseOrderDTO {
     private List<PurchaseOrderItemDTO> items;
     private BigDecimal totalAmount;
 
-    // Campos da NF-e (Nota Fiscal Eletrônica)
+    // Campos essenciais da NF-e para controle fiscal MEI
     
     /**
-     * Número da NF-e
-     */
-    private String invoiceNumber;
-    
-    /**
-     * Série da NF-e
-     */
-    private String invoiceSeries;
-    
-    /**
-     * Chave de acesso da NF-e (44 dígitos)
+     * Chave de acesso da NF-e (44 dígitos) - Identificação fiscal obrigatória
      */
     private String accessKey;
     
     /**
-     * Nome do emitente/fornecedor
+     * Nome do fornecedor - Para controle de estoque
      */
     private String supplierName;
     
     /**
-     * CNPJ ou CPF do emitente
+     * CNPJ ou CPF do fornecedor - Para identificação fiscal
      */
     private String supplierTaxId;
     
@@ -56,12 +46,12 @@ public class PurchaseOrderDTO {
     private PurchaseCategory purchaseCategory;
     
     /**
-     * Caminho do arquivo PDF (DANFE)
+     * Caminho do arquivo PDF (DANFE) - Documento fiscal oficial
      */
     private String pdfFilePath;
     
     /**
-     * Caminho do arquivo XML da NF-e
+     * Caminho do arquivo XML da NF-e - Contém todos os dados fiscais
      */
     private String xmlFilePath;
 }

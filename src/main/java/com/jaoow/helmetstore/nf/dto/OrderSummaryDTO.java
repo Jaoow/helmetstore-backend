@@ -17,9 +17,8 @@ public class OrderSummaryDTO {
     private List<OrderItemDTO> items;
     private List<String> itemsNotFound;
     
-    // Campos adicionais da NF-e
-    private String invoiceSeries;
-    private String accessKey;
-    private String supplierName;
-    private String supplierTaxId;
+    // Campos essenciais para controle de estoque e fiscal MEI
+    private String accessKey;        // Identificação fiscal obrigatória
+    private String supplierName;     // Nome do fornecedor
+    private String supplierTaxId;    // CNPJ/CPF do fornecedor
 }
