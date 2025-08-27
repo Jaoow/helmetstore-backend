@@ -4,9 +4,12 @@ import com.jaoow.helmetstore.dto.order.PurchaseOrderCreateDTO;
 import com.jaoow.helmetstore.dto.order.PurchaseOrderDTO;
 import com.jaoow.helmetstore.dto.order.PurchaseOrderHistoryResponse;
 import com.jaoow.helmetstore.dto.order.PurchaseOrderUpdateDTO;
+import com.jaoow.helmetstore.service.InternalEntryDocumentService;
 import com.jaoow.helmetstore.service.PurchaseOrderService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -20,6 +23,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class PurchaseOrderController {
     private final PurchaseOrderService purchaseOrderService;
+    private final InternalEntryDocumentService internalEntryDocumentService;
 
     @GetMapping
     public List<PurchaseOrderDTO> getAll() {
@@ -70,6 +74,28 @@ public class PurchaseOrderController {
             return ResponseEntity.ok("XML uploaded successfully: " + filePath);
         } catch (IOException e) {
             return ResponseEntity.badRequest().body("Error uploading XML: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Gera documento interno de entrada (Nota de Entrada Interna – Estoque MEI)
+     */
+    @GetMapping("/{id}/internal-entry-document")
+    public ResponseEntity<byte[]> generateInternalEntryDocument(
+            @PathVariable Long id,
+            Principal principal) {
+        try {
+            byte[] pdfContent = internalEntryDocumentService.generateInternalEntryDocument(id, principal);
+            
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_PDF);
+            headers.setContentDispositionFormData("inline", "nota-entrada-interna-" + id + ".pdf");
+            
+            return ResponseEntity.ok()
+                    .headers(headers)
+                    .body(pdfContent);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().build();
         }
     }
 }
