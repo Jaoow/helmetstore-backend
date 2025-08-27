@@ -44,6 +44,7 @@ public class PurchaseOrderService {
     private final InventoryHelper inventoryHelper;
     private final InventoryItemRepository inventoryItemRepository;
     private final TransactionService transactionService;
+    private final FileStorageService fileStorageService;
 
     @Transactional(readOnly = true)
     @PreAuthorize("hasRole('ADMIN')")
@@ -169,6 +170,12 @@ public class PurchaseOrderService {
 
         Optional.ofNullable(dto.getOrderNumber()).ifPresent(order::setOrderNumber);
         Optional.ofNullable(dto.getDate()).ifPresent(order::setDate);
+        
+        // Update essential NF-e fields only
+        Optional.ofNullable(dto.getAccessKey()).ifPresent(order::setAccessKey);
+        Optional.ofNullable(dto.getSupplierName()).ifPresent(order::setSupplierName);
+        Optional.ofNullable(dto.getSupplierTaxId()).ifPresent(order::setSupplierTaxId);
+        Optional.ofNullable(dto.getPurchaseCategory()).ifPresent(order::setPurchaseCategory);
 
         order = purchaseOrderRepository.save(order);
         return modelMapper.map(order, PurchaseOrderDTO.class);
@@ -205,10 +212,55 @@ public class PurchaseOrderService {
             if (inventoryItem.getLastPurchaseDate() == null || inventoryItem.getLastPurchaseDate().isBefore(order.getDate())) {
                 inventoryItem.setLastPurchaseDate(order.getDate());
                 inventoryItem.setLastPurchasePrice(item.getPurchasePrice());
+                inventoryItem.setLastPurchaseOrder(order); // Link to purchase order
             }
 
             inventoryItem.setQuantity(inventoryItem.getQuantity() + item.getQuantity());
             inventoryItemRepository.save(inventoryItem);
         }
+    }
+
+    /**
+     * Upload do arquivo PDF (DANFE) para uma ordem de compra
+     */
+    @Transactional
+    public String uploadPdfFile(Long orderId, org.springframework.web.multipart.MultipartFile file, Principal principal) throws java.io.IOException {
+        Inventory inventory = inventoryHelper.getInventoryFromPrincipal(principal);
+        PurchaseOrder order = purchaseOrderRepository.findByIdAndInventory(orderId, inventory)
+                .orElseThrow(() -> new OrderNotFoundException(orderId));
+
+        // Remove arquivo anterior se existir
+        if (order.getPdfFilePath() != null) {
+            fileStorageService.deleteFile(order.getPdfFilePath());
+        }
+
+        // Salva novo arquivo
+        String filePath = fileStorageService.storeFile(file, "pdf", orderId);
+        order.setPdfFilePath(filePath);
+        purchaseOrderRepository.save(order);
+
+        return filePath;
+    }
+
+    /**
+     * Upload do arquivo XML da NF-e para uma ordem de compra
+     */
+    @Transactional
+    public String uploadXmlFile(Long orderId, org.springframework.web.multipart.MultipartFile file, Principal principal) throws java.io.IOException {
+        Inventory inventory = inventoryHelper.getInventoryFromPrincipal(principal);
+        PurchaseOrder order = purchaseOrderRepository.findByIdAndInventory(orderId, inventory)
+                .orElseThrow(() -> new OrderNotFoundException(orderId));
+
+        // Remove arquivo anterior se existir
+        if (order.getXmlFilePath() != null) {
+            fileStorageService.deleteFile(order.getXmlFilePath());
+        }
+
+        // Salva novo arquivo
+        String filePath = fileStorageService.storeFile(file, "xml", orderId);
+        order.setXmlFilePath(filePath);
+        purchaseOrderRepository.save(order);
+
+        return filePath;
     }
 }

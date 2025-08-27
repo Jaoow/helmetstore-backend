@@ -1,9 +1,11 @@
 package com.jaoow.helmetstore.dto.order;
 
+import com.jaoow.helmetstore.model.PurchaseCategory;
 import com.jaoow.helmetstore.model.PurchaseOrderStatus;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import lombok.*;
+import org.hibernate.validator.constraints.Length;
 
 import java.time.LocalDate;
 
@@ -22,4 +24,26 @@ public class PurchaseOrderUpdateDTO {
     @NotNull
     private PurchaseOrderStatus status;
 
+    // Campos essenciais da NF-e para controle fiscal MEI
+    
+    /**
+     * Chave de acesso da NF-e (44 dígitos) - Identificação fiscal obrigatória
+     */
+    @Length(min = 44, max = 44, message = "Access key must have exactly 44 digits")
+    private String accessKey;
+    
+    /**
+     * Nome do fornecedor - Para controle de estoque
+     */
+    private String supplierName;
+    
+    /**
+     * CNPJ ou CPF do fornecedor - Para identificação fiscal
+     */
+    private String supplierTaxId;
+    
+    /**
+     * Categoria da compra (CNPJ MEI vs CPF Pessoal)
+     */
+    private PurchaseCategory purchaseCategory;
 }

@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -36,4 +37,10 @@ public interface PurchaseOrderRepository extends JpaRepository<PurchaseOrder, Lo
     Optional<PurchaseOrder> findByIdAndInventory(Long id, Inventory inventory);
 
     boolean existsByInventoryAndOrderNumber(Inventory inventory, String orderNumber);
+
+    /**
+     * Encontra todas as ordens de compra de um inventário em um período específico para relatórios fiscais
+     */
+    List<PurchaseOrder> findByInventoryAndDateBetweenOrderByDate(
+            Inventory inventory, LocalDate startDate, LocalDate endDate);
 }

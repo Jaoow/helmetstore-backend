@@ -1,6 +1,7 @@
 package com.jaoow.helmetstore.model.inventory;
 
 import com.jaoow.helmetstore.model.ProductVariant;
+import com.jaoow.helmetstore.model.PurchaseOrder;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -30,4 +31,10 @@ public class InventoryItem {
     @ManyToOne(optional = false)
     private Inventory inventory;
 
+    /**
+     * Referência à última ordem de compra que atualizou este item
+     * Permite rastrear de onde veio o produto
+     */
+    @ManyToOne
+    private PurchaseOrder lastPurchaseOrder;
 }
