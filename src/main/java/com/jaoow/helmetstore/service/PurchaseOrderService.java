@@ -214,6 +214,7 @@ public class PurchaseOrderService {
             if (inventoryItem.getLastPurchaseDate() == null || inventoryItem.getLastPurchaseDate().isBefore(order.getDate())) {
                 inventoryItem.setLastPurchaseDate(order.getDate());
                 inventoryItem.setLastPurchasePrice(item.getPurchasePrice());
+                inventoryItem.setLastPurchaseOrder(order); // Link to purchase order
             }
 
             inventoryItem.setQuantity(inventoryItem.getQuantity() + item.getQuantity());
