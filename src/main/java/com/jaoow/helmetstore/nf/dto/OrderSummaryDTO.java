@@ -1,9 +1,6 @@
 package com.jaoow.helmetstore.nf.dto;
 
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 
 import java.util.List;
 
@@ -11,6 +8,7 @@ import java.util.List;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
 public class OrderSummaryDTO {
     private String invoiceNumber;
     private String invoiceDate;
@@ -18,4 +16,10 @@ public class OrderSummaryDTO {
     private double totalPrice;
     private List<OrderItemDTO> items;
     private List<String> itemsNotFound;
+    
+    // Campos adicionais da NF-e
+    private String invoiceSeries;
+    private String accessKey;
+    private String supplierName;
+    private String supplierTaxId;
 }

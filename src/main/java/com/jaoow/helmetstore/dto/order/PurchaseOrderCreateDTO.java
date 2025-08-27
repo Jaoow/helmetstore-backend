@@ -1,5 +1,6 @@
 package com.jaoow.helmetstore.dto.order;
 
+import com.jaoow.helmetstore.model.PurchaseCategory;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
@@ -28,4 +29,37 @@ public class PurchaseOrderCreateDTO {
 
     @DecimalMin(value = "0.0", message = "Total amount must be greater than 0")
     private BigDecimal totalAmount;
+
+    // Campos da NF-e (Nota Fiscal Eletrônica)
+    
+    /**
+     * Número da NF-e
+     */
+    private String invoiceNumber;
+    
+    /**
+     * Série da NF-e
+     */
+    private String invoiceSeries;
+    
+    /**
+     * Chave de acesso da NF-e (44 dígitos)
+     */
+    @Length(min = 44, max = 44, message = "Access key must have exactly 44 digits")
+    private String accessKey;
+    
+    /**
+     * Nome do emitente/fornecedor
+     */
+    private String supplierName;
+    
+    /**
+     * CNPJ ou CPF do emitente
+     */
+    private String supplierTaxId;
+    
+    /**
+     * Categoria da compra (CNPJ MEI vs CPF Pessoal)
+     */
+    private PurchaseCategory purchaseCategory;
 }

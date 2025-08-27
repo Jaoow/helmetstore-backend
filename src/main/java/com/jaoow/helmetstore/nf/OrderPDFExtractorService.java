@@ -35,15 +35,50 @@ public class OrderPDFExtractorService {
         double totalPrice = 0.0;
         List<OrderItemDTO> items = new ArrayList<>();
         List<String> itemsNotFound = new ArrayList<>();
+        
+        // Novos campos da NF-e
+        String invoiceSeries = "";
+        String accessKey = "";
+        String supplierName = "";
+        String supplierTaxId = "";
 
         try (PDDocument document = Loader.loadPDF(pdfFile)) {
             PDFTextStripper pdfStripper = new PDFTextStripper();
             String text = pdfStripper.getText(document).replaceAll("\\r?\\n\\s*", " ");
 
+            // Extrair número da NF-e
             Pattern invoiceNumberPattern = Pattern.compile("NF-e\\s*Nº\\.\\s*([\\d\\.]+)");
             Matcher invoiceNumberMatcher = invoiceNumberPattern.matcher(text);
             if (invoiceNumberMatcher.find()) {
                 invoiceNumber = invoiceNumberMatcher.group(1);
+            }
+            
+            // Extrair série da NF-e
+            Pattern invoiceSeriesPattern = Pattern.compile("Série\\s*(\\d+)");
+            Matcher invoiceSeriesMatcher = invoiceSeriesPattern.matcher(text);
+            if (invoiceSeriesMatcher.find()) {
+                invoiceSeries = invoiceSeriesMatcher.group(1);
+            }
+            
+            // Extrair chave de acesso (44 dígitos)
+            Pattern accessKeyPattern = Pattern.compile("(\\d{4}\\s+\\d{4}\\s+\\d{4}\\s+\\d{4}\\s+\\d{4}\\s+\\d{4}\\s+\\d{4}\\s+\\d{4}\\s+\\d{4}\\s+\\d{4}\\s+\\d{4})");
+            Matcher accessKeyMatcher = accessKeyPattern.matcher(text);
+            if (accessKeyMatcher.find()) {
+                accessKey = accessKeyMatcher.group(1).replaceAll("\\s+", "");
+            }
+            
+            // Extrair nome do emitente/fornecedor
+            Pattern supplierNamePattern = Pattern.compile("EMITENTE[\\s\\S]*?Nome/Razão Social\\s*([\\w\\s]+?)\\s*(?:Nome Fantasia|Inscrição)");
+            Matcher supplierNameMatcher = supplierNamePattern.matcher(text);
+            if (supplierNameMatcher.find()) {
+                supplierName = supplierNameMatcher.group(1).trim();
+            }
+            
+            // Extrair CNPJ do emitente
+            Pattern supplierTaxIdPattern = Pattern.compile("CNPJ\\s*([\\d\\./\\-]+)");
+            Matcher supplierTaxIdMatcher = supplierTaxIdPattern.matcher(text);
+            if (supplierTaxIdMatcher.find()) {
+                supplierTaxId = supplierTaxIdMatcher.group(1);
             }
 
             Pattern purchaseOrderPattern = Pattern
@@ -83,6 +118,17 @@ public class OrderPDFExtractorService {
                 }
             }
         }
-        return new OrderSummaryDTO(invoiceNumber, invoiceDate, purchaseOrderNumber, totalPrice, items, itemsNotFound);
+        return OrderSummaryDTO.builder()
+                .invoiceNumber(invoiceNumber)
+                .invoiceDate(invoiceDate)
+                .purchaseOrderNumber(purchaseOrderNumber)
+                .totalPrice(totalPrice)
+                .items(items)
+                .itemsNotFound(itemsNotFound)
+                .invoiceSeries(invoiceSeries)
+                .accessKey(accessKey)
+                .supplierName(supplierName)
+                .supplierTaxId(supplierTaxId)
+                .build();
     }
 }
