@@ -43,6 +43,9 @@ public enum TransactionDetail {
 
     // === TRANSFERS (TRANSFERÊNCIAS) ===
 
-    /** Transferência entre contas (genérica) */
-    INTER_ACCOUNT_TRANSFER
+    /** Transferência interna - saída (não afeta lucro líquido) */
+    INTERNAL_TRANSFER_OUT,
+
+    /** Transferência interna - entrada (não afeta lucro líquido) */
+    INTERNAL_TRANSFER_IN
 }

@@ -45,8 +45,9 @@ public class Transaction {
 
     public boolean affectsWithdrawableProfit() {
         if (type == TransactionType.EXPENSE) {
-            return detail != TransactionDetail.COST_OF_GOODS_SOLD;
+            return detail != TransactionDetail.COST_OF_GOODS_SOLD
+                    && detail != TransactionDetail.INTERNAL_TRANSFER_OUT;
         }
-        return  false;
+        return false;
     }
 }

@@ -23,8 +23,4 @@ public class BalanceConversionDTO {
 
     @NotNull
     private AccountType toAccountType;
-
-    private String description;
-
-    private String reference;
 }

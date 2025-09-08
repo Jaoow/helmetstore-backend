@@ -2,17 +2,11 @@ package com.jaoow.helmetstore.service;
 
 import com.jaoow.helmetstore.dto.balance.AccountInfo;
 import com.jaoow.helmetstore.dto.balance.BalanceConversionDTO;
-import com.jaoow.helmetstore.model.balance.Account;
-import com.jaoow.helmetstore.model.balance.AccountType;
-import com.jaoow.helmetstore.model.balance.PaymentMethod;
-import com.jaoow.helmetstore.model.balance.Transaction;
-import com.jaoow.helmetstore.model.balance.TransactionDetail;
-import com.jaoow.helmetstore.model.balance.TransactionType;
+import com.jaoow.helmetstore.model.balance.*;
 import com.jaoow.helmetstore.model.user.User;
 import com.jaoow.helmetstore.repository.AccountRepository;
 import com.jaoow.helmetstore.repository.TransactionRepository;
 import com.jaoow.helmetstore.service.user.UserService;
-import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import org.modelmapper.ModelMapper;
 import org.springframework.stereotype.Service;
@@ -138,36 +132,46 @@ public class AccountService {
         PaymentMethod toPaymentMethod = conversionDTO.getToAccountType() == AccountType.CASH ? PaymentMethod.CASH
                 : PaymentMethod.PIX;
 
-        String defaultDescription = String.format("Conversão de %s para %s",
-                conversionDTO.getFromAccountType() == AccountType.CASH ? "dinheiro" : "conta bancária",
-                conversionDTO.getToAccountType() == AccountType.CASH ? "dinheiro" : "conta bancária");
+        // Gerar descrição e referência automaticamente
+        String fromAccountLabel = conversionDTO.getFromAccountType() == AccountType.CASH ? "dinheiro"
+                : "conta bancária";
+        String toAccountLabel = conversionDTO.getToAccountType() == AccountType.CASH ? "dinheiro" : "conta bancária";
+        String description = String.format("Conversão de %s para %s", fromAccountLabel, toAccountLabel);
+        String reference = String.format("CONV-%d-%s", System.currentTimeMillis(),
+                conversionDTO.getFromAccountType().name().charAt(0)
+                        + conversionDTO.getToAccountType().name().substring(0, 1));
+
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime toTransactionTime = now.plusSeconds(2);
 
         Transaction fromTransaction = Transaction.builder()
-                .date(LocalDateTime.now())
+                .date(now)
                 .type(TransactionType.EXPENSE)
-                .detail(TransactionDetail.INTER_ACCOUNT_TRANSFER)
-                .description(
-                        conversionDTO.getDescription() != null ? conversionDTO.getDescription() : defaultDescription)
+                .detail(TransactionDetail.INTERNAL_TRANSFER_OUT) // Transferência interna
+                .description(description)
                 .amount(conversionDTO.getAmount())
                 .paymentMethod(fromPaymentMethod)
-                .reference(conversionDTO.getReference())
+                .reference(reference)
                 .account(fromAccount)
                 .build();
 
         Transaction toTransaction = Transaction.builder()
-                .date(LocalDateTime.now())
+                .date(toTransactionTime)
                 .type(TransactionType.INCOME)
-                .detail(TransactionDetail.INTER_ACCOUNT_TRANSFER)
-                .description(
-                        conversionDTO.getDescription() != null ? conversionDTO.getDescription() : defaultDescription)
+                .detail(TransactionDetail.INTERNAL_TRANSFER_IN) // Transferência interna
+                .description(description)
                 .amount(conversionDTO.getAmount())
                 .paymentMethod(toPaymentMethod)
-                .reference(conversionDTO.getReference())
+                .reference(reference)
                 .account(toAccount)
                 .build();
 
-        transactionRepository.save(fromTransaction);
-        transactionRepository.save(toTransaction);
+        Transaction savedFromTransaction = transactionRepository.save(fromTransaction);
+        Transaction savedToTransaction = transactionRepository.save(toTransaction);
+
+        if (savedFromTransaction.getDate().isAfter(savedToTransaction.getDate())) {
+            throw new IllegalStateException("Erro na ordem das transações: saída deve vir antes da entrada");
+        }
 
         cacheInvalidationService.invalidateFinancialCaches();
     }
