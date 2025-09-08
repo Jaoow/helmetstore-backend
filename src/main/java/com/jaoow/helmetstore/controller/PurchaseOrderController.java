@@ -28,13 +28,19 @@ public class PurchaseOrderController {
         return purchaseOrderService.getHistory(principal);
     }
 
+    @GetMapping("/{id}")
+    public PurchaseOrderDTO getById(@PathVariable Long id, Principal principal) {
+        return purchaseOrderService.findByIdAndUser(id, principal);
+    }
+
     @PostMapping
     public PurchaseOrderDTO create(@RequestBody @Valid PurchaseOrderCreateDTO purchaseOrderDTO, Principal principal) {
         return purchaseOrderService.save(purchaseOrderDTO, principal);
     }
 
     @PutMapping("/{id}")
-    public PurchaseOrderDTO update(@PathVariable Long id, @RequestBody @Valid PurchaseOrderUpdateDTO purchaseOrderUpdateDTO, Principal principal) {
+    public PurchaseOrderDTO update(@PathVariable Long id,
+            @RequestBody @Valid PurchaseOrderUpdateDTO purchaseOrderUpdateDTO, Principal principal) {
         return purchaseOrderService.update(id, purchaseOrderUpdateDTO, principal);
     }
 }

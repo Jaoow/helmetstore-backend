@@ -13,27 +13,37 @@ import java.util.Optional;
 @Repository
 public interface PurchaseOrderRepository extends JpaRepository<PurchaseOrder, Long> {
 
-    @Query("""
-            SELECT po FROM PurchaseOrder po
-            JOIN FETCH po.items i
-            JOIN FETCH i.productVariant pv
-            JOIN FETCH pv.product pr
-            WHERE po.inventory = :inventory
-            ORDER BY po.date DESC, po.id DESC, pr.model, pr.color, pv.size
-            """)
-    List<PurchaseOrder> findAllByInventoryWithItemsAndVariants();
+        @Query("""
+                        SELECT po FROM PurchaseOrder po
+                        JOIN FETCH po.items i
+                        JOIN FETCH i.productVariant pv
+                        JOIN FETCH pv.product pr
+                        WHERE po.inventory = :inventory
+                        ORDER BY po.date DESC, po.id DESC, pr.model, pr.color, pv.size
+                        """)
+        List<PurchaseOrder> findAllByInventoryWithItemsAndVariants();
 
-    @Query("""
-            SELECT po FROM PurchaseOrder po
-            JOIN FETCH po.items i
-            JOIN FETCH i.productVariant pv
-            JOIN FETCH pv.product pr
-            WHERE po.inventory = :inventory
-            ORDER BY po.date DESC, po.id DESC, pr.model, pr.color, pv.size
-            """)
-    List<PurchaseOrder> findAllByInventoryWithItemsAndVariants(@Param("inventory") Inventory inventory);
+        @Query("""
+                        SELECT po FROM PurchaseOrder po
+                        JOIN FETCH po.items i
+                        JOIN FETCH i.productVariant pv
+                        JOIN FETCH pv.product pr
+                        WHERE po.inventory = :inventory
+                        ORDER BY po.date DESC, po.id DESC, pr.model, pr.color, pv.size
+                        """)
+        List<PurchaseOrder> findAllByInventoryWithItemsAndVariants(@Param("inventory") Inventory inventory);
 
-    Optional<PurchaseOrder> findByIdAndInventory(Long id, Inventory inventory);
+        Optional<PurchaseOrder> findByIdAndInventory(Long id, Inventory inventory);
 
-    boolean existsByInventoryAndOrderNumber(Inventory inventory, String orderNumber);
+        @Query("""
+                        SELECT po FROM PurchaseOrder po
+                        JOIN FETCH po.items i
+                        JOIN FETCH i.productVariant pv
+                        JOIN FETCH pv.product pr
+                        WHERE po.id = :id AND po.inventory = :inventory
+                        """)
+        Optional<PurchaseOrder> findByIdAndInventoryWithItemsAndVariants(@Param("id") Long id,
+                        @Param("inventory") Inventory inventory);
+
+        boolean existsByInventoryAndOrderNumber(Inventory inventory, String orderNumber);
 }

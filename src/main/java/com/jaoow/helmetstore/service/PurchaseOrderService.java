@@ -79,6 +79,15 @@ public class PurchaseOrderService {
         return new PurchaseOrderHistoryResponse(orders, products, productVariants);
     }
 
+    @Transactional(readOnly = true)
+    public PurchaseOrderDTO findByIdAndUser(Long id, Principal principal) {
+        Inventory inventory = inventoryHelper.getInventoryFromPrincipal(principal);
+        PurchaseOrder purchaseOrder = purchaseOrderRepository.findByIdAndInventoryWithItemsAndVariants(id, inventory)
+                .orElseThrow(() -> new OrderNotFoundException(id));
+
+        return modelMapper.map(purchaseOrder, PurchaseOrderDTO.class);
+    }
+
     @Caching(evict = {
             @CacheEvict(value = CacheNames.PRODUCT_INDICATORS, key = "#principal.name"),
             @CacheEvict(value = CacheNames.PRODUCT_STOCK, key = "#principal.name"),
@@ -108,7 +117,8 @@ public class PurchaseOrderService {
         return modelMapper.map(purchaseOrder, PurchaseOrderDTO.class);
     }
 
-    private List<PurchaseOrderItem> createPurchaseOrderItems(PurchaseOrderCreateDTO orderCreateDTO, PurchaseOrder purchaseOrder, Inventory inventory) {
+    private List<PurchaseOrderItem> createPurchaseOrderItems(PurchaseOrderCreateDTO orderCreateDTO,
+            PurchaseOrder purchaseOrder, Inventory inventory) {
         List<PurchaseOrderItem> items = new ArrayList<>();
 
         for (PurchaseOrderItemDTO itemDTO : orderCreateDTO.getItems()) {
@@ -129,8 +139,10 @@ public class PurchaseOrderService {
         return items;
     }
 
-    private void ensureInventoryItemExists(Inventory inventory, ProductVariant variant, BigDecimal price, LocalDate date) {
-        Optional<InventoryItem> inventoryItem = inventoryItemRepository.findByInventoryAndProductVariant(inventory, variant);
+    private void ensureInventoryItemExists(Inventory inventory, ProductVariant variant, BigDecimal price,
+            LocalDate date) {
+        Optional<InventoryItem> inventoryItem = inventoryItemRepository.findByInventoryAndProductVariant(inventory,
+                variant);
         if (inventoryItem.isEmpty()) {
             inventoryItemRepository.save(
                     InventoryItem.builder()
@@ -139,8 +151,7 @@ public class PurchaseOrderService {
                             .quantity(0)
                             .lastPurchasePrice(price)
                             .lastPurchaseDate(date)
-                            .build()
-            );
+                            .build());
         }
     }
 
@@ -203,7 +214,8 @@ public class PurchaseOrderService {
                             .quantity(0)
                             .build());
 
-            if (inventoryItem.getLastPurchaseDate() == null || inventoryItem.getLastPurchaseDate().isBefore(order.getDate())) {
+            if (inventoryItem.getLastPurchaseDate() == null
+                    || inventoryItem.getLastPurchaseDate().isBefore(order.getDate())) {
                 inventoryItem.setLastPurchaseDate(order.getDate());
                 inventoryItem.setLastPurchasePrice(item.getPurchasePrice());
             }
