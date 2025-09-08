@@ -77,9 +77,7 @@ public class TransactionService {
 
     @Transactional
     public void recordTransactionFromPurchaseOrder(PurchaseOrder purchaseOrder, Principal principal) {
-        // Assuming all purchase orders are paid via PIX
-        // TODO: Handle different payment methods for purchase orders
-        Account account = accountService.findAccountByPaymentMethodAndUser(PaymentMethod.PIX, principal)
+        Account account = accountService.findAccountByPaymentMethodAndUser(purchaseOrder.getPaymentMethod(), principal)
                 .orElseThrow(() -> new AccountNotFoundException(
                         "No account found for the given payment method."));
 
@@ -89,7 +87,7 @@ public class TransactionService {
                 .detail(TransactionDetail.COST_OF_GOODS_SOLD)
                 .description(PURCHASE_ORDER_REFERENCE_PREFIX + purchaseOrder.getOrderNumber())
                 .amount(purchaseOrder.getTotalAmount())
-                .paymentMethod(PaymentMethod.PIX)
+                .paymentMethod(purchaseOrder.getPaymentMethod())
                 .reference(PURCHASE_ORDER_REFERENCE_PREFIX + purchaseOrder.getId())
                 .account(account)
                 .build();

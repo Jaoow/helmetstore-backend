@@ -94,6 +94,7 @@ public class PurchaseOrderService {
 
         PurchaseOrder purchaseOrder = modelMapper.map(orderCreateDTO, PurchaseOrder.class);
         purchaseOrder.setInventory(inventory);
+        purchaseOrder.setPaymentMethod(orderCreateDTO.getPaymentMethod());
 
         List<PurchaseOrderItem> items = createPurchaseOrderItems(orderCreateDTO, purchaseOrder, inventory);
         BigDecimal totalAmount = calculateTotalAmount(items);

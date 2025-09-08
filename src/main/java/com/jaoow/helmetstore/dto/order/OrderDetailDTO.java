@@ -1,5 +1,6 @@
 package com.jaoow.helmetstore.dto.order;
 
+import com.jaoow.helmetstore.model.balance.PaymentMethod;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -15,6 +16,7 @@ public class OrderDetailDTO {
     private BigDecimal totalAmount;
     private LocalDate date;
     private String status;
+    private PaymentMethod paymentMethod;
     private List<OrderItemDTO> items;
 
     @Getter

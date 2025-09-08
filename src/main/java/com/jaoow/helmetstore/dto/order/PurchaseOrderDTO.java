@@ -1,6 +1,7 @@
 package com.jaoow.helmetstore.dto.order;
 
 import com.jaoow.helmetstore.model.PurchaseOrderStatus;
+import com.jaoow.helmetstore.model.balance.PaymentMethod;
 import lombok.*;
 
 import java.math.BigDecimal;
@@ -16,8 +17,10 @@ public class PurchaseOrderDTO {
 
     private Long id;
     private String orderNumber;
+    @Builder.Default
     private LocalDate date = LocalDate.now();
     private PurchaseOrderStatus status;
     private List<PurchaseOrderItemDTO> items;
     private BigDecimal totalAmount;
+    private PaymentMethod paymentMethod;
 }

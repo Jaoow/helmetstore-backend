@@ -1,5 +1,6 @@
 package com.jaoow.helmetstore.dto.order;
 
+import com.jaoow.helmetstore.model.balance.PaymentMethod;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
@@ -28,4 +29,7 @@ public class PurchaseOrderCreateDTO {
 
     @DecimalMin(value = "0.0", message = "Total amount must be greater than 0")
     private BigDecimal totalAmount;
+
+    @NotNull(message = "Payment method is required")
+    private PaymentMethod paymentMethod;
 }

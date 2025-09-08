@@ -1,5 +1,6 @@
 package com.jaoow.helmetstore.model;
 
+import com.jaoow.helmetstore.model.balance.PaymentMethod;
 import com.jaoow.helmetstore.model.inventory.Inventory;
 import jakarta.persistence.*;
 import lombok.*;
@@ -23,6 +24,7 @@ public class PurchaseOrder {
     private String orderNumber;
 
     @Enumerated(EnumType.STRING)
+    @Builder.Default
     private PurchaseOrderStatus status = PurchaseOrderStatus.INVOICED;
 
     @Column(columnDefinition = "DATE")
@@ -33,6 +35,10 @@ public class PurchaseOrder {
 
     @Column(precision = 10, scale = 2)
     private BigDecimal totalAmount;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private PaymentMethod paymentMethod;
 
     @ManyToOne(optional = false)
     private Inventory inventory;
