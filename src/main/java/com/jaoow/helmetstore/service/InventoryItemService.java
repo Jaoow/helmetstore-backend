@@ -12,6 +12,7 @@ import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.security.Principal;
 import java.util.List;
 
@@ -56,5 +57,16 @@ public class InventoryItemService {
         for (VariantPriceUpdateDTO priceUpdateDTO : dto) {
             inventoryItemRepository.updatePrice(priceUpdateDTO.getVariantId(), priceUpdateDTO.getLastPurchasePrice(), inventory);
         }
+    }
+
+    @Transactional
+    @Caching(evict = {
+            @CacheEvict(value = CacheNames.PRODUCT_INDICATORS, key = "#principal.name"),
+            @CacheEvict(value = CacheNames.PRODUCT_INDICATORS_GROUPED, key = "#principal.name"),
+            @CacheEvict(value = CacheNames.PRODUCT_STOCK, key = "#principal.name"),
+    })
+    public void updateProductPrice(Long productId, BigDecimal price, Principal principal) {
+        Inventory inventory = inventoryHelper.getInventoryFromPrincipal(principal);
+        inventoryItemRepository.updatePriceByProduct(productId, price, inventory);
     }
 }

@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.security.Principal;
 import java.util.List;
 
@@ -38,6 +39,11 @@ public class InventoryItemController {
     public void updateInventoryItemPrice(@RequestBody @Valid List<VariantPriceUpdateDTO> variantPriceUpdateDTOs,
             Principal principal) {
         inventoryItemService.updateItemPrice(variantPriceUpdateDTOs, principal);
+    }
+
+    @PostMapping("/adjust-product-purchase-price")
+    public void updateProductPrice(@RequestParam Long productId, @RequestParam BigDecimal price, Principal principal) {
+        inventoryItemService.updateProductPrice(productId, price, principal);
     }
 
     @DeleteMapping("/product/{productId}")

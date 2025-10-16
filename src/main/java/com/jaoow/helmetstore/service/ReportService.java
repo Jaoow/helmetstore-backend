@@ -4,6 +4,7 @@ import com.jaoow.helmetstore.cache.CacheNames;
 import com.jaoow.helmetstore.dto.FinancialSummaryDTO;
 import com.jaoow.helmetstore.dto.info.ProductStockDto;
 import com.jaoow.helmetstore.dto.info.ProductStockVariantDto;
+import com.jaoow.helmetstore.dto.summary.ProductSalesAndStockSummary;
 import com.jaoow.helmetstore.dto.summary.ProductVariantSaleSummary;
 import com.jaoow.helmetstore.dto.summary.ProductVariantSalesAndStockSummary;
 import com.jaoow.helmetstore.dto.summary.ProductVariantStockSummary;
@@ -39,6 +40,12 @@ public class ReportService {
     public List<ProductVariantSalesAndStockSummary> getProductIndicators(Principal principal) {
         Inventory inventory = inventoryHelper.getInventoryFromPrincipal(principal);
         return inventoryItemRepository.findAllWithSalesAndPurchaseDataByInventory(EXCLUDED_STATUSES, inventory);
+    }
+
+    @Cacheable(value = CacheNames.PRODUCT_INDICATORS_GROUPED, key = "#principal.name")
+    public List<ProductSalesAndStockSummary> getProductIndicatorsGrouped(Principal principal) {
+        Inventory inventory = inventoryHelper.getInventoryFromPrincipal(principal);
+        return inventoryItemRepository.findAllGroupedByProduct(EXCLUDED_STATUSES, inventory);
     }
 
     @Cacheable(value = CacheNames.MOST_SOLD_PRODUCTS, key = "#principal.name")

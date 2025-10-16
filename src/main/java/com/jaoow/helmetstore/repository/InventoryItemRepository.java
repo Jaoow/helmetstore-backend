@@ -1,5 +1,6 @@
 package com.jaoow.helmetstore.repository;
 
+import com.jaoow.helmetstore.dto.summary.ProductSalesAndStockSummary;
 import com.jaoow.helmetstore.dto.summary.ProductVariantSaleSummary;
 import com.jaoow.helmetstore.dto.summary.ProductVariantSalesAndStockSummary;
 import com.jaoow.helmetstore.dto.summary.ProductVariantStockSummary;
@@ -184,4 +185,90 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, Lo
 	void updatePrice(@Param("variantId") Long variantId,
 			@Param("price") BigDecimal price,
 			@Param("inventory") Inventory inventory);
+
+    @Query("""
+            WITH SalesSummary AS (
+                SELECT
+                    si.productVariant.id AS variantId,
+                    MAX(s.date) AS lastSaleDate,
+                    SUM(si.quantity) AS totalSold,
+                    SUM(si.totalItemPrice) AS totalRevenue,
+                    SUM(si.totalItemProfit) AS totalProfit
+                FROM Sale s
+                JOIN s.items si
+                WHERE s.inventory = :inventory
+                GROUP BY si.productVariant.id
+            ),
+            StockSummary AS (
+                SELECT
+                    ii.productVariant.id AS variantId,
+                    COALESCE(SUM(CASE WHEN po.status NOT IN (:excludedStatuses) THEN poi.quantity ELSE 0 END), 0) AS incomingStock
+                FROM InventoryItem ii
+                LEFT JOIN PurchaseOrderItem poi ON poi.productVariant.id = ii.productVariant.id
+                LEFT JOIN poi.purchaseOrder po ON po.inventory = :inventory
+                WHERE ii.inventory = :inventory
+                GROUP BY ii.productVariant.id, ii.quantity
+            ),
+            ProductAggregates AS (
+                SELECT
+                    p.id AS productId,
+                    SUM(ii.quantity) AS totalCurrentStock,
+                    SUM(s.incomingStock) AS totalIncomingStock,
+                    SUM(ii.quantity * COALESCE(ii.lastPurchasePrice, 0)) AS totalStockValue,
+                    MAX(ii.lastPurchaseDate) AS lastPurchaseDate,
+                    AVG(ii.lastPurchasePrice) AS avgPurchasePrice,
+                    MAX(ss.lastSaleDate) AS lastSaleDate,
+                    SUM(ss.totalSold) AS totalSold,
+                    SUM(ss.totalRevenue) AS totalRevenue,
+                    SUM(ss.totalProfit) AS totalProfit
+                FROM InventoryItem ii
+                JOIN ProductVariant pv ON pv.id = ii.productVariant.id
+                JOIN Product p ON p.id = pv.product.id
+                LEFT JOIN SalesSummary ss ON ss.variantId = pv.id
+                LEFT JOIN StockSummary s ON s.variantId = pv.id
+                WHERE ii.inventory = :inventory
+                GROUP BY p.id
+            )
+            SELECT
+                p.id AS productId,
+                p.model AS model,
+                p.color AS color,
+                p.imgUrl AS imgUrl,
+                COALESCE(c.name, '') AS categoryName,
+                COALESCE(ipd.salePrice, 0) AS salePrice,
+                pa.lastPurchaseDate AS lastPurchaseDate,
+                pa.avgPurchasePrice AS lastPurchasePrice,
+                pa.totalCurrentStock AS totalCurrentStock,
+                pa.totalIncomingStock AS totalIncomingStock,
+                pa.totalCurrentStock + pa.totalIncomingStock AS totalFutureStock,
+                pa.lastSaleDate AS lastSaleDate,
+                pa.totalSold AS totalSold,
+                pa.totalRevenue AS totalRevenue,
+                pa.totalProfit AS totalProfit,
+                pa.totalStockValue AS totalStockValue,
+                CASE
+                    WHEN COALESCE(pa.totalRevenue, 0) > 0 THEN
+                        (COALESCE(pa.totalProfit, 0) / COALESCE(pa.totalRevenue, 0)) * 100
+                    ELSE 0
+                END AS profitMargin
+            FROM Product p
+            JOIN ProductAggregates pa ON pa.productId = p.id
+            LEFT JOIN p.category c
+            LEFT JOIN ProductData ipd ON ipd.product = p AND ipd.inventory = :inventory
+            WHERE EXISTS (
+                SELECT 1 FROM InventoryItem ii
+                JOIN ProductVariant pv ON pv.id = ii.productVariant.id
+                WHERE ii.inventory = :inventory AND pv.product.id = p.id
+            )
+            ORDER BY p.model ASC, p.color ASC
+            """)
+    List<ProductSalesAndStockSummary> findAllGroupedByProduct(
+            @Param("excludedStatuses") List<PurchaseOrderStatus> excludedStatuses,
+            @Param("inventory") Inventory inventory);
+
+    @Modifying
+    @Query("UPDATE InventoryItem ii SET ii.lastPurchasePrice = :price WHERE ii.productVariant.product.id = :productId AND ii.inventory = :inventory")
+    void updatePriceByProduct(@Param("productId") Long productId,
+            @Param("price") BigDecimal price,
+            @Param("inventory") Inventory inventory);
 }
