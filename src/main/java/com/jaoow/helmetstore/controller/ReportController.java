@@ -2,6 +2,7 @@ package com.jaoow.helmetstore.controller;
 
 import com.jaoow.helmetstore.dto.FinancialSummaryDTO;
 import com.jaoow.helmetstore.dto.info.ProductStockDto;
+import com.jaoow.helmetstore.dto.summary.ProductSalesAndStockSummary;
 import com.jaoow.helmetstore.dto.summary.ProductVariantSaleSummary;
 import com.jaoow.helmetstore.dto.summary.ProductVariantSalesAndStockSummary;
 import com.jaoow.helmetstore.service.ReportService;
@@ -27,6 +28,11 @@ public class ReportController {
     @GetMapping("/product-indicators")
     public List<ProductVariantSalesAndStockSummary> getProductIndicators(Principal principal) {
         return reportService.getProductIndicators(principal);
+    }
+
+    @GetMapping("/product-indicators-grouped")
+    public List<ProductSalesAndStockSummary> getProductIndicatorsGrouped(Principal principal) {
+        return reportService.getProductIndicatorsGrouped(principal);
     }
 
     @GetMapping("/most-sold-products")
