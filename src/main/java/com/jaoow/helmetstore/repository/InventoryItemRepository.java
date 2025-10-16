@@ -15,6 +15,7 @@ import org.springframework.stereotype.Repository;
 
 import java.util.List;
 import java.util.Optional;
+import java.math.BigDecimal;
 
 @Repository
 public interface InventoryItemRepository extends JpaRepository<InventoryItem, Long> {
@@ -177,4 +178,10 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, Lo
     @Modifying
     @Query("DELETE FROM InventoryItem ii WHERE ii.productVariant.product.id = :productId AND ii.inventory = :inventory")
     void deleteByProductIdAndInventory(@Param("productId") Long productId, @Param("inventory") Inventory inventory);
+
+    @Modifying
+	@Query("UPDATE InventoryItem ii SET ii.lastPurchasePrice = :price WHERE ii.productVariant.id = :variantId AND ii.inventory = :inventory")
+	void updatePrice(@Param("variantId") Long variantId,
+			@Param("price") BigDecimal price,
+			@Param("inventory") Inventory inventory);
 }

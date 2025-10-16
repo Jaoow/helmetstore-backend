@@ -1,6 +1,7 @@
 package com.jaoow.helmetstore.service;
 
 import com.jaoow.helmetstore.cache.CacheNames;
+import com.jaoow.helmetstore.dto.item.VariantPriceUpdateDTO;
 import com.jaoow.helmetstore.dto.item.VariantStockUpdateDTO;
 import com.jaoow.helmetstore.helper.InventoryHelper;
 import com.jaoow.helmetstore.model.inventory.Inventory;
@@ -43,5 +44,17 @@ public class InventoryItemService {
     public void deleteProductFromInventory(Long productId, Principal principal) {
         Inventory inventory = inventoryHelper.getInventoryFromPrincipal(principal);
         inventoryItemRepository.deleteByProductIdAndInventory(productId, inventory);
+    }
+
+    @Transactional
+    @Caching(evict = {
+            @CacheEvict(value = CacheNames.PRODUCT_INDICATORS, key = "#principal.name"),
+            @CacheEvict(value = CacheNames.PRODUCT_STOCK, key = "#principal.name"),
+    })
+    public void updateItemPrice(List<VariantPriceUpdateDTO> dto, Principal principal) {
+        Inventory inventory = inventoryHelper.getInventoryFromPrincipal(principal);
+        for (VariantPriceUpdateDTO priceUpdateDTO : dto) {
+            inventoryItemRepository.updatePrice(priceUpdateDTO.getVariantId(), priceUpdateDTO.getLastPurchasePrice(), inventory);
+        }
     }
 }

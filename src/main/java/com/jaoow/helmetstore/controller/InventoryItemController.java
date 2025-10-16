@@ -1,5 +1,6 @@
 package com.jaoow.helmetstore.controller;
 
+import com.jaoow.helmetstore.dto.item.VariantPriceUpdateDTO;
 import com.jaoow.helmetstore.dto.item.VariantStockUpdateDTO;
 import com.jaoow.helmetstore.dto.product.ProductDataResponseDTO;
 import com.jaoow.helmetstore.dto.product.ProductDataUpsertDTO;
@@ -31,6 +32,12 @@ public class InventoryItemController {
     public ProductDataResponseDTO updateProductPrice(@RequestBody @Valid ProductDataUpsertDTO upsertDTO,
             Principal principal) {
         return productDataService.upsert(upsertDTO, principal);
+    }
+
+    @PostMapping("/adjust-purchase-price")
+    public void updateInventoryItemPrice(@RequestBody @Valid List<VariantPriceUpdateDTO> variantPriceUpdateDTOs,
+            Principal principal) {
+        inventoryItemService.updateItemPrice(variantPriceUpdateDTOs, principal);
     }
 
     @DeleteMapping("/product/{productId}")
