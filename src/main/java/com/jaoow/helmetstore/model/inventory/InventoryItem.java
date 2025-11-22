@@ -20,7 +20,7 @@ public class InventoryItem {
 
     private int quantity;
 
-    private BigDecimal lastPurchasePrice;
+    private BigDecimal averageCost;
 
     private LocalDate lastPurchaseDate;
 

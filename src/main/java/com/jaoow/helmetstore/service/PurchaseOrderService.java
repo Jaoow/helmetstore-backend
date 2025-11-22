@@ -149,7 +149,7 @@ public class PurchaseOrderService {
                             .inventory(inventory)
                             .productVariant(variant)
                             .quantity(0)
-                            .lastPurchasePrice(price)
+                            .averageCost(price)
                             .lastPurchaseDate(date)
                             .build());
         }
@@ -212,14 +212,25 @@ public class PurchaseOrderService {
                             .inventory(inventory)
                             .productVariant(item.getProductVariant())
                             .quantity(0)
+                            .averageCost(BigDecimal.ZERO)
                             .build());
 
-            if (inventoryItem.getLastPurchaseDate() == null
-                    || inventoryItem.getLastPurchaseDate().isBefore(order.getDate())) {
-                inventoryItem.setLastPurchaseDate(order.getDate());
-                inventoryItem.setLastPurchasePrice(item.getPurchasePrice());
-            }
+            // Calculate weighted average cost
+            BigDecimal currentQty = BigDecimal.valueOf(inventoryItem.getQuantity());
+            BigDecimal newQty = BigDecimal.valueOf(item.getQuantity());
+            BigDecimal currentCost = inventoryItem.getAverageCost() != null ? inventoryItem.getAverageCost() : BigDecimal.ZERO;
+            BigDecimal newCost = item.getPurchasePrice();
 
+            BigDecimal totalCurrentValue = currentQty.multiply(currentCost);
+            BigDecimal totalNewValue = newQty.multiply(newCost);
+            BigDecimal totalQty = currentQty.add(newQty);
+
+            BigDecimal newAverageCost = totalQty.compareTo(BigDecimal.ZERO) > 0 ?
+                totalCurrentValue.add(totalNewValue).divide(totalQty, 2, BigDecimal.ROUND_HALF_UP) :
+                newCost;
+
+            inventoryItem.setAverageCost(newAverageCost);
+            inventoryItem.setLastPurchaseDate(order.getDate());
             inventoryItem.setQuantity(inventoryItem.getQuantity() + item.getQuantity());
             inventoryItemRepository.save(inventoryItem);
         }

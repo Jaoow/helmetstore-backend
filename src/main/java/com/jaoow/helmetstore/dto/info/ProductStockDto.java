@@ -13,6 +13,6 @@ import java.time.LocalDate;
 @AllArgsConstructor
 @NoArgsConstructor
 public class ProductStockDto extends BaseProductStockDto<ProductStockVariantDto> {
-    private BigDecimal lastPurchasePrice;
+    private BigDecimal averageCost;
     private LocalDate lastPurchaseDate;
 }

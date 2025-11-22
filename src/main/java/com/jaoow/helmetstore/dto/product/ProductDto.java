@@ -18,7 +18,7 @@ public class ProductDto implements Serializable {
     private String model;
     private String color;
     private String imgUrl;
-    private BigDecimal lastPurchasePrice;
+    private BigDecimal averageCost;
     private LocalDate lastPurchaseDate;
     private String categoryName;
     private List<ProductVariantDto> variants = new ArrayList<>();

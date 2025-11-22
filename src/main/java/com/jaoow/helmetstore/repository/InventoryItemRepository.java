@@ -51,7 +51,7 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, Lo
                 p.imgUrl AS imgUrl,
                 COALESCE(c.name, '') AS categoryName,
                 ii.lastPurchaseDate AS lastPurchaseDate,
-                COALESCE(ii.lastPurchasePrice, 0) AS lastPurchasePrice,
+                COALESCE(ii.averageCost, 0) AS averageCost,
                 COALESCE(ipd.salePrice, 0) AS salePrice,
                 pv.id AS variantId,
                 pv.sku AS sku,
@@ -64,7 +64,7 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, Lo
                 COALESCE(ss.totalRevenue, 0) AS totalRevenue,
                 COALESCE(ss.totalProfit, 0) AS totalProfit,
                 ii.quantity + s.incomingStock AS futureStock,
-                ii.quantity * COALESCE(ii.lastPurchasePrice, 0) AS totalStockValue,
+                ii.quantity * COALESCE(ii.averageCost, 0) AS totalStockValue,
                 CASE
                     WHEN COALESCE(ss.totalRevenue, 0) > 0 THEN
                         (COALESCE(ss.totalProfit, 0) / COALESCE(ss.totalRevenue, 0)) * 100
@@ -81,7 +81,7 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, Lo
             LEFT JOIN ProductData ipd ON ipd.product = p AND ipd.inventory = :inventory
             WHERE ii.inventory = :inventory
             GROUP BY
-                p.id, pv.id, ii.quantity, ii.lastPurchaseDate, ii.lastPurchasePrice,
+                p.id, pv.id, ii.quantity, ii.lastPurchaseDate, ii.averageCost,
                 ss.lastSaleDate, ss.totalSold, ss.totalRevenue, ss.totalProfit, s.incomingStock, ipd.salePrice, c.name
             ORDER BY p.model ASC, p.color ASC, pv.size
             """)
@@ -105,7 +105,7 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, Lo
                     p.color AS color,
                     p.imgUrl AS imgUrl,
                     COALESCE(c.name, '') AS categoryName,
-                    COALESCE(ii.lastPurchasePrice, 0) AS lastPurchasePrice,
+                    COALESCE(ii.averageCost, 0) AS averageCost,
                     COALESCE(ipd.salePrice, 0) AS salePrice,
                     ii.lastPurchaseDate AS lastPurchaseDate,
                     pv.id AS variantId,
@@ -181,7 +181,7 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, Lo
     void deleteByProductIdAndInventory(@Param("productId") Long productId, @Param("inventory") Inventory inventory);
 
     @Modifying
-	@Query("UPDATE InventoryItem ii SET ii.lastPurchasePrice = :price WHERE ii.productVariant.id = :variantId AND ii.inventory = :inventory")
+	@Query("UPDATE InventoryItem ii SET ii.averageCost = :price WHERE ii.productVariant.id = :variantId AND ii.inventory = :inventory")
 	void updatePrice(@Param("variantId") Long variantId,
 			@Param("price") BigDecimal price,
 			@Param("inventory") Inventory inventory);
@@ -214,9 +214,9 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, Lo
                     p.id AS productId,
                     SUM(ii.quantity) AS totalCurrentStock,
                     SUM(s.incomingStock) AS totalIncomingStock,
-                    SUM(ii.quantity * COALESCE(ii.lastPurchasePrice, 0)) AS totalStockValue,
+                    SUM(ii.quantity * COALESCE(ii.averageCost, 0)) AS totalStockValue,
                     MAX(ii.lastPurchaseDate) AS lastPurchaseDate,
-                    AVG(ii.lastPurchasePrice) AS avgPurchasePrice,
+                    AVG(ii.averageCost) AS avgPurchasePrice,
                     MAX(ss.lastSaleDate) AS lastSaleDate,
                     SUM(ss.totalSold) AS totalSold,
                     SUM(ss.totalRevenue) AS totalRevenue,
@@ -237,7 +237,7 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, Lo
                 COALESCE(c.name, '') AS categoryName,
                 COALESCE(ipd.salePrice, 0) AS salePrice,
                 pa.lastPurchaseDate AS lastPurchaseDate,
-                pa.avgPurchasePrice AS lastPurchasePrice,
+                pa.avgPurchasePrice AS averageCost,
                 pa.totalCurrentStock AS totalCurrentStock,
                 pa.totalIncomingStock AS totalIncomingStock,
                 pa.totalCurrentStock + pa.totalIncomingStock AS totalFutureStock,
@@ -267,7 +267,7 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, Lo
             @Param("inventory") Inventory inventory);
 
     @Modifying
-    @Query("UPDATE InventoryItem ii SET ii.lastPurchasePrice = :price WHERE ii.productVariant.product.id = :productId AND ii.inventory = :inventory")
+    @Query("UPDATE InventoryItem ii SET ii.averageCost = :price WHERE ii.productVariant.product.id = :productId AND ii.inventory = :inventory")
     void updatePriceByProduct(@Param("productId") Long productId,
             @Param("price") BigDecimal price,
             @Param("inventory") Inventory inventory);

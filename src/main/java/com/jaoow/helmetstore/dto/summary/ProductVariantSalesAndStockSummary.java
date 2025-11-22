@@ -20,7 +20,7 @@ public interface ProductVariantSalesAndStockSummary {
 
     LocalDate getLastPurchaseDate();
 
-    BigDecimal getLastPurchasePrice();
+    BigDecimal getAverageCost();
 
     Long getVariantId();
 

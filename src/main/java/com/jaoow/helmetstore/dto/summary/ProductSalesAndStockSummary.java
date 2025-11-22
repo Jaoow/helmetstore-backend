@@ -21,7 +21,7 @@ public interface ProductSalesAndStockSummary {
 
     LocalDate getLastPurchaseDate();
 
-    BigDecimal getLastPurchasePrice();
+    BigDecimal getAverageCost();
 
     Integer getTotalCurrentStock();
 
@@ -51,6 +51,6 @@ interface ProductVariantInfo {
     Integer getCurrentStock();
     Integer getIncomingStock();
     Integer getFutureStock();
-    BigDecimal getLastPurchasePrice();
+    BigDecimal getAverageCost();
     LocalDate getLastPurchaseDate();
 }

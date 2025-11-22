@@ -1,4 +1,0 @@
-ALTER TABLE sale 
-ALTER COLUMN product_variant_id DROP NOT NULL,
-ALTER COLUMN quantity DROP NOT NULL,
-ALTER COLUMN unit_price DROP NOT NULL;

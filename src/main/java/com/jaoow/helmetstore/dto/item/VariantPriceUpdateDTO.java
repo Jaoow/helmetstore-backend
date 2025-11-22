@@ -16,7 +16,7 @@ public class VariantPriceUpdateDTO {
     @NotNull(message = "Variant ID cannot be null")
     private Long variantId;
 
-    @NotNull(message = "Last purchase price cannot be null")
-    @DecimalMin(value = "0.0", inclusive = false, message = "Last purchase price must be greater than 0")
-    private BigDecimal lastPurchasePrice;
+    @NotNull(message = "Average cost cannot be null")
+    @DecimalMin(value = "0.0", inclusive = false, message = "Average cost must be greater than 0")
+    private BigDecimal averageCost;
 }

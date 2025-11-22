@@ -102,7 +102,7 @@ public class SaleCalculationHelper {
      * Popula os valores calculados de um SaleItem
      */
     public void populateSaleItemCalculations(SaleItem saleItem, InventoryItem inventoryItem) {
-        BigDecimal unitProfit = calculateUnitProfit(saleItem.getUnitPrice(), inventoryItem.getLastPurchasePrice());
+        BigDecimal unitProfit = calculateUnitProfit(saleItem.getUnitPrice(), inventoryItem.getAverageCost());
         BigDecimal totalItemPrice = calculateTotalItemPrice(saleItem.getUnitPrice(), saleItem.getQuantity());
         BigDecimal totalItemProfit = calculateTotalItemProfit(unitProfit, saleItem.getQuantity());
 

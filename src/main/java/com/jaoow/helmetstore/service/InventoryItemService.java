@@ -55,7 +55,7 @@ public class InventoryItemService {
     public void updateItemPrice(List<VariantPriceUpdateDTO> dto, Principal principal) {
         Inventory inventory = inventoryHelper.getInventoryFromPrincipal(principal);
         for (VariantPriceUpdateDTO priceUpdateDTO : dto) {
-            inventoryItemRepository.updatePrice(priceUpdateDTO.getVariantId(), priceUpdateDTO.getLastPurchasePrice(), inventory);
+            inventoryItemRepository.updatePrice(priceUpdateDTO.getVariantId(), priceUpdateDTO.getAverageCost(), inventory);
         }
     }
 
