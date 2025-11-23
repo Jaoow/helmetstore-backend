@@ -22,13 +22,17 @@ The inbound process handles the acquisition of inventory and establishes the cos
 - **Automatic Processing**:
   - System updates `InventoryItem` records for each product variant
   - Updates `quantity` (adds purchased amount)
-  - Sets `lastPurchasePrice` to the purchase cost per unit
+  - Sets `averageCost` to the purchase cost per unit
   - Updates `lastPurchaseDate` to current date
 
 #### 1.3 Cost Basis Establishment
 - **Cost Basis Calculation**:
-  - Each `InventoryItem` maintains the most recent purchase price
-  - Cost basis = `lastPurchasePrice` per unit
+  - Each `InventoryItem` maintains a weighted average cost basis
+  - **Average Cost Formula**:
+    ```
+    new_average_cost = ((current_quantity × current_average_cost) + (purchase_quantity × purchase_price)) ÷ (current_quantity + purchase_quantity)
+    ```
+  - Cost basis = `averageCost` per unit (weighted average of all purchases)
   - Used for profit calculations on future sales
 
 #### 1.4 Financial Transaction Recording
@@ -66,14 +70,14 @@ public class PurchaseOrderItem {
 public class InventoryItem {
     private ProductVariant productVariant;
     private int quantity; // Current stock level
-    private BigDecimal lastPurchasePrice; // Current cost basis
+    private BigDecimal averageCost; // Current cost basis
     private LocalDate lastPurchaseDate;
 }
 ```
 
 ### Business Rules
 
-- **Cost Basis Updates**: Each purchase updates the cost basis for that product variant
+- **Cost Basis Updates**: Each purchase recalculates the weighted average cost for that product variant
 - **Stock Accumulation**: Quantities are additive across multiple purchases
 - **Financial Impact**: Purchase reduces cash but doesn't affect profit until products are sold
 
@@ -93,7 +97,7 @@ The outbound process converts inventory into revenue and tracks profitability.
 
 #### 2.2 Profit Calculation Process
 - **Per-Item Profit Calculation**:
-  - Retrieves cost basis from `InventoryItem.lastPurchasePrice`
+  - Retrieves cost basis from `InventoryItem.averageCost`
   - Calculates unit profit = `salePrice - purchasePrice`
   - Calculates total item profit = `unitProfit × quantity`
 
@@ -109,6 +113,7 @@ The outbound process converts inventory into revenue and tracks profitability.
   - Transaction Type: `INCOME`
   - `deductsFromProfit`: `true` (sales increase profit)
   - Amount: Total sale revenue
+  - Profit Impact: Total sale profit (revenue - cost of goods sold)
   - Updates both profit and cash flow
 
 ### Data Models Involved
@@ -159,10 +164,10 @@ The system calculates three primary financial metrics:
 - **Definition**: Business profitability after expenses
 - **Calculation**:
   ```
-  profit = Σ(SALE transactions) - Σ(transactions WHERE deductsFromProfit = true)
+  profit = Σ(profit impact of all transactions)
   ```
 - **Components**:
-  - **Positive Impact**: Sales revenue
+  - **Positive Impact**: Sales profit (revenue - cost of goods sold)
   - **Negative Impact**: Rent, utilities, equipment purchases, other expenses
   - **Neutral Impact**: Product purchases, owner investments, profit withdrawals
 
@@ -200,7 +205,7 @@ The system calculates three primary financial metrics:
 
 | Transaction Type | Category | Profit Impact | Cash Flow Impact | Description |
 |------------------|----------|---------------|------------------|-------------|
-| `SALE` | INCOME | +amount | +amount | Product sales revenue |
+| `SALE` | INCOME | +profit | +amount | Product sales revenue (profit = revenue - COGS) |
 | `PRODUCT_PURCHASE` | EXPENSE | unchanged | -amount | Inventory acquisition |
 | `RENT` | EXPENSE | -amount | -amount | Monthly rent payments |
 | `ELECTRICITY` | EXPENSE | -amount | -amount | Utility bills |
@@ -257,9 +262,12 @@ The system calculates three primary financial metrics:
 
 1. **Purchase Phase**:
    - Purchase 100 helmets at $50 each ($5000 total)
-   - Inventory updated: quantity = 100, lastPurchasePrice = $50
+   - Inventory updated: quantity = 100, averageCost = $50
    - Transaction: PRODUCT_PURCHASE $5000 (expense, no profit impact)
    - Cash flow: -$5000
+
+   *Note: If a second purchase of 50 helmets at $55 each occurs:*
+   *New average cost = ((100 × $50) + (50 × $55)) ÷ (100 + 50) = ($5000 + $2750) ÷ 150 = $7750 ÷ 150 = $51.67*
 
 2. **Sales Phase**:
    - Sell 10 helmets at $80 each ($800 total)
@@ -287,8 +295,8 @@ The system calculates three primary financial metrics:
 - Accurate profit calculations
 
 ### 2. Inventory-Finance Integration
-- Cost basis automatically maintained
-- Profit calculations use current purchase prices
+- Cost basis automatically maintained using weighted average costing
+- Profit calculations use current average cost basis
 - Stock levels drive financial projections
 
 ### 3. Comprehensive Reporting
