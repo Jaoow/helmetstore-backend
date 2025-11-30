@@ -1,5 +1,5 @@
 # Etapa 1: Build com Maven usando JDK 21
-FROM openjdk:21-jdk AS build
+FROM amazoncorretto:21-alpine-jdk AS build
 
 # Define diretório de trabalho
 WORKDIR /app
@@ -19,7 +19,7 @@ COPY src src
 RUN ./mvnw clean package -DskipTests
 
 # Etapa 2: Imagem final para execução da aplicação
-FROM openjdk:21-jdk
+FROM amazoncorretto:21-alpine-jdk
 
 # Cria volume para arquivos temporários
 VOLUME /tmp
