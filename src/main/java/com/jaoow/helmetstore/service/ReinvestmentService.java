@@ -306,6 +306,9 @@ public class ReinvestmentService {
         // ============================================================================
         BigDecimal transactionAmount = (type == TransactionType.EXPENSE) ? amount.negate() : amount;
 
+        // Determine wallet destination based on account type
+        AccountType walletDest = account.getType();
+
         return Transaction.builder()
             .date(LocalDateTime.now())
             .type(type)
@@ -316,6 +319,11 @@ public class ReinvestmentService {
                 : PaymentMethod.PIX)
             .reference("REINVESTMENT")
             .account(account)
+            // DOUBLE-ENTRY LEDGER FLAGS FOR REINVESTMENT
+            // EXPENSE (withdrawal): reduces profit | INCOME (deposit): only increases cash
+            .affectsProfit(type == TransactionType.EXPENSE)  // Only withdrawal reduces profit
+            .affectsCash(true)                               // Both withdrawal and deposit affect cash
+            .walletDestination(walletDest)                   // Target wallet (CASH or BANK)
             .build();
     }
 
