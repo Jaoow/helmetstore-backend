@@ -12,7 +12,37 @@
 -- ================================================================================
 
 -- ================================================================================
--- PART 1: Update Purchase Order Transactions Detail
+-- PART 1: Add INVENTORY_PURCHASE to the Check Constraint
+-- ================================================================================
+-- Purpose: Allow 'INVENTORY_PURCHASE' as a valid value in the detail column
+-- before we try to update existing rows
+-- ================================================================================
+
+-- Drop the existing constraint (if it exists)
+ALTER TABLE transaction DROP CONSTRAINT IF EXISTS transaction_detail_check;
+
+-- Recreate the constraint with all valid TransactionDetail enum values
+ALTER TABLE transaction ADD CONSTRAINT transaction_detail_check
+CHECK (detail IN (
+    'SALE',
+    'OWNER_INVESTMENT',
+    'EXTRA_INCOME',
+    'INVENTORY_PURCHASE',
+    'COST_OF_GOODS_SOLD',
+    'FIXED_EXPENSE',
+    'VARIABLE_EXPENSE',
+    'PRO_LABORE',
+    'PROFIT_DISTRIBUTION',
+    'INVESTMENT',
+    'TAX',
+    'PERSONAL_EXPENSE',
+    'OTHER_EXPENSE',
+    'INTERNAL_TRANSFER_OUT',
+    'INTERNAL_TRANSFER_IN'
+));
+
+-- ================================================================================
+-- PART 2: Update Purchase Order Transactions Detail
 -- ================================================================================
 -- Purpose: Change detail from 'COST_OF_GOODS_SOLD' to 'INVENTORY_PURCHASE'
 -- for all transactions that represent stock purchases (Purchase Orders)
