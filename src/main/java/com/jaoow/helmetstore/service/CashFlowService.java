@@ -4,9 +4,7 @@ import com.jaoow.helmetstore.dto.balance.CashFlowSummaryDTO;
 import com.jaoow.helmetstore.dto.balance.MonthlyCashFlowDTO;
 import com.jaoow.helmetstore.dto.balance.TransactionInfo;
 import com.jaoow.helmetstore.model.balance.AccountType;
-import com.jaoow.helmetstore.model.balance.PaymentMethod;
 import com.jaoow.helmetstore.model.balance.Transaction;
-import com.jaoow.helmetstore.model.balance.TransactionType;
 import com.jaoow.helmetstore.repository.AccountRepository;
 import com.jaoow.helmetstore.repository.TransactionRepository;
 import com.jaoow.helmetstore.service.AccountService;
@@ -31,7 +29,6 @@ import java.util.stream.Collectors;
 public class CashFlowService {
 
     private final TransactionRepository transactionRepository;
-    private final AccountRepository accountRepository;
     private final ModelMapper modelMapper;
     private final AccountService accountService;
 
@@ -39,23 +36,39 @@ public class CashFlowService {
     public CashFlowSummaryDTO getCashFlowSummary(Principal principal) {
         String userEmail = principal.getName();
 
+        // ============================================================================
+        // USE LEDGER SYSTEM: Wallet balances calculated from walletDestination
+        // ============================================================================
         BigDecimal bankBalance = accountService.calculateAccountBalanceByType(userEmail, AccountType.BANK);
         BigDecimal cashBalance = accountService.calculateAccountBalanceByType(userEmail, AccountType.CASH);
         BigDecimal totalBalance = bankBalance.add(cashBalance);
 
+        // ============================================================================
+        // USE LEDGER SYSTEM: Cash flow calculated from affectsCash flag
+        // ============================================================================
+        // Only transactions with affectsCash=true represent REAL money movement
+        // This excludes COGS (accounting entry) and other non-cash transactions
         List<Transaction> allTransactions = transactionRepository.findByAccountUserEmail(userEmail);
 
+        // Separate positive cash flow (inflows) from negative cash flow (outflows)
         BigDecimal totalIncome = allTransactions.stream()
-                .filter(t -> t.getType() == TransactionType.INCOME)
-                .map(Transaction::getAmount)
+                .filter(Transaction::isAffectsCash) // Only real cash movements
+                .map(Transaction::getAmount) // Positive = inflow
+                .filter(amount -> amount.compareTo(BigDecimal.ZERO) > 0)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         BigDecimal totalExpense = allTransactions.stream()
-                .filter(t -> t.getType() == TransactionType.EXPENSE)
-                .map(Transaction::getAmount)
+                .filter(Transaction::isAffectsCash) // Only real cash movements
+                .map(Transaction::getAmount) // Negative = outflow
+                .filter(amount -> amount.compareTo(BigDecimal.ZERO) < 0)
+                .map(BigDecimal::abs) // Convert to positive for display
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        BigDecimal totalCashFlow = totalIncome.subtract(totalExpense);
+        // Total cash flow = sum of all cash-affecting transactions
+        BigDecimal totalCashFlow = allTransactions.stream()
+                .filter(Transaction::isAffectsCash)
+                .map(Transaction::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         List<MonthlyCashFlowDTO> monthlyBreakdown = getMonthlyCashFlowBreakdown(userEmail);
 
@@ -81,7 +94,7 @@ public class CashFlowService {
                     return YearMonth.of(year, month);
                 })
                 .sorted()
-                .collect(Collectors.toList());
+                .toList();
 
         List<MonthlyCashFlowDTO> result = new ArrayList<>();
 
@@ -115,17 +128,26 @@ public class CashFlowService {
         List<Transaction> monthlyTransactions = transactionRepository
                 .findByAccountUserEmailAndDateRange(userEmail, startOfMonth, startOfNextMonth);
 
+        // ============================================================================
+        // USE LEDGER SYSTEM: Only count transactions with affectsCash = true
+        // ============================================================================
         BigDecimal monthlyIncome = monthlyTransactions.stream()
-                .filter(t -> t.getType() == TransactionType.INCOME)
+                .filter(Transaction::isAffectsCash) // Only real cash movements
+                .filter(t -> t.getAmount().compareTo(BigDecimal.ZERO) > 0) // Positive = inflow
                 .map(Transaction::getAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         BigDecimal monthlyExpense = monthlyTransactions.stream()
-                .filter(t -> t.getType() == TransactionType.EXPENSE)
+                .filter(Transaction::isAffectsCash) // Only real cash movements
+                .filter(t -> t.getAmount().compareTo(BigDecimal.ZERO) < 0) // Negative = outflow
                 .map(Transaction::getAmount)
+                .map(BigDecimal::abs) // Convert to positive for display
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        BigDecimal monthlyCashFlow = monthlyIncome.subtract(monthlyExpense);
+        BigDecimal monthlyCashFlow = monthlyTransactions.stream()
+                .filter(Transaction::isAffectsCash)
+                .map(Transaction::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         Map<String, BigDecimal> accountBalances = calculateMonthlyAccountBalances(monthlyTransactions);
 
@@ -142,24 +164,19 @@ public class CashFlowService {
     }
 
     private Map<String, BigDecimal> calculateMonthlyAccountBalances(List<Transaction> transactions) {
-        BigDecimal bankBalance = BigDecimal.ZERO;
-        BigDecimal cashBalance = BigDecimal.ZERO;
+        // ============================================================================
+        // USE LEDGER SYSTEM: Wallet balances based on walletDestination
+        // ============================================================================
+        // walletDestination indicates which wallet (CASH/BANK) the transaction affects
+        BigDecimal bankBalance = transactions.stream()
+                .filter(t -> t.getWalletDestination() == AccountType.BANK)
+                .map(Transaction::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        for (Transaction transaction : transactions) {
-            BigDecimal amount = transaction.getAmount();
-            if (transaction.getType() == TransactionType.EXPENSE) {
-                amount = amount.negate();
-            }
-
-            // Determine which account this transaction affects based on payment method
-            PaymentMethod paymentMethod = transaction.getPaymentMethod();
-            if (paymentMethod == PaymentMethod.CASH) {
-                cashBalance = cashBalance.add(amount);
-            } else {
-                // PIX and CARD transactions affect bank balance
-                bankBalance = bankBalance.add(amount);
-            }
-        }
+        BigDecimal cashBalance = transactions.stream()
+                .filter(t -> t.getWalletDestination() == AccountType.CASH)
+                .map(Transaction::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         return Map.of(
                 "bank", bankBalance,
@@ -175,24 +192,18 @@ public class CashFlowService {
                         LocalDateTime.of(1900, 1, 1, 0, 0), // Start from beginning
                         endOfTargetMonth.plusSeconds(1)); // Include the entire target month
 
-        BigDecimal cumulativeBankBalance = BigDecimal.ZERO;
-        BigDecimal cumulativeCashBalance = BigDecimal.ZERO;
+        // ============================================================================
+        // USE LEDGER SYSTEM: Cumulative wallet balances based on walletDestination
+        // ============================================================================
+        BigDecimal cumulativeBankBalance = transactionsUpToMonth.stream()
+                .filter(t -> t.getWalletDestination() == AccountType.BANK)
+                .map(Transaction::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        for (Transaction transaction : transactionsUpToMonth) {
-            BigDecimal amount = transaction.getAmount();
-            if (transaction.getType() == TransactionType.EXPENSE) {
-                amount = amount.negate(); // Expenses reduce balance
-            }
-
-            // Determine which account this transaction affects based on payment method
-            PaymentMethod paymentMethod = transaction.getPaymentMethod();
-            if (paymentMethod == PaymentMethod.CASH) {
-                cumulativeCashBalance = cumulativeCashBalance.add(amount);
-            } else {
-                // PIX and CARD transactions affect bank balance
-                cumulativeBankBalance = cumulativeBankBalance.add(amount);
-            }
-        }
+        BigDecimal cumulativeCashBalance = transactionsUpToMonth.stream()
+                .filter(t -> t.getWalletDestination() == AccountType.CASH)
+                .map(Transaction::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         return Map.of(
                 "bank", cumulativeBankBalance,
@@ -202,7 +213,8 @@ public class CashFlowService {
 
     private List<TransactionInfo> convertToTransactionInfo(List<Transaction> transactions) {
         return transactions.stream()
+                .filter(Transaction::isAffectsCash) // Only show cash-affecting transactions
                 .map(transaction -> modelMapper.map(transaction, TransactionInfo.class))
                 .collect(Collectors.toList());
     }
-} 
+}

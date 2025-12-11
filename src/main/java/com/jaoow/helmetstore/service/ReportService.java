@@ -1,7 +1,6 @@
 package com.jaoow.helmetstore.service;
 
 import com.jaoow.helmetstore.cache.CacheNames;
-import com.jaoow.helmetstore.dto.FinancialSummaryDTO;
 import com.jaoow.helmetstore.dto.info.ProductStockDto;
 import com.jaoow.helmetstore.dto.info.ProductStockVariantDto;
 import com.jaoow.helmetstore.dto.summary.ProductSalesAndStockSummary;
@@ -85,12 +84,5 @@ public class ReportService {
 
     private ProductStockVariantDto mapToProductStockVariantDto(ProductVariantStockSummary projection) {
         return modelMapper.map(projection, ProductStockVariantDto.class);
-    }
-
-    @Cacheable(value = CacheNames.REVENUE_AND_PROFIT, key = "#principal.name")
-    public FinancialSummaryDTO getRevenueAndProfit(Principal principal) {
-        Inventory inventory = inventoryHelper.getInventoryFromPrincipal(principal);
-        return saleRepository.getFinancialSummary(inventory)
-                .orElse(new FinancialSummaryDTO(BigDecimal.ZERO, BigDecimal.ZERO));
     }
 }

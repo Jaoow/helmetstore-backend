@@ -1,51 +1,67 @@
 package com.jaoow.helmetstore.model.balance;
 
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+
+@Getter
+@AllArgsConstructor
 public enum TransactionDetail {
+
     // === INCOME (ENTRADAS) ===
 
-    /** Receita de venda de produtos ou serviços */
-    SALE,
+    /** Venda (aumenta caixa e aumenta lucro do mês) */
+    SALE(true, true),
 
-    /** Aporte dos sócios (não entra como lucro) */
-    OWNER_INVESTMENT,
+    /** Aporte dos sócios (entra no caixa, mas NÃO afeta lucro) */
+    OWNER_INVESTMENT(false, true),
 
-    /** Recebimento de juros ou outros rendimentos */
-    EXTRA_INCOME,
+    /** Receitas financeiras (juros, bônus) — lucro e caixa */
+    EXTRA_INCOME(true, true),
+
 
     // === EXPENSES (SAÍDAS) ===
 
-    /** Custo direto do produto vendido (CPV / CMV) */
-    COST_OF_GOODS_SOLD,
+    /** Compra de estoque — NÃO afeta lucro, mas reduz caixa */
+    INVENTORY_PURCHASE(false, true),
 
-    /** Despesas fixas da operação (aluguel, contador, internet, etc.) */
-    FIXED_EXPENSE,
+    /** Custo do produto vendido (CPV) — diminui lucro e caixa */
+    COST_OF_GOODS_SOLD(true, true),
 
-    /** Despesas variáveis (marketing, comissões, tarifas, fretes por venda) */
-    VARIABLE_EXPENSE,
+    /** Despesas fixas — diminuem lucro e caixa */
+    FIXED_EXPENSE(true, true),
 
-    /** Pro-labore — retirada de sócios como salário */
-    PRO_LABORE,
+    /** Despesas variáveis — diminuem lucro e caixa */
+    VARIABLE_EXPENSE(true, true),
 
-    /** Distribuição de lucro — retirada além do pro-labore */
-    PROFIT_DISTRIBUTION,
+    /** Pró-labore — diminuem lucro e caixa */
+    PRO_LABORE(true, true),
 
-    /** Compra de bens ou melhorias (máquinas, móveis, etc.) */
-    INVESTMENT,
+    /** Distribuição de lucros — NÃO afeta lucro, mas reduz caixa */
+    PROFIT_DISTRIBUTION(false, true),
 
-    /** Pagamento de impostos diversos (DAS, IRPJ, etc.) */
-    TAX,
+    /** Compra de bens — NÃO afeta lucro, mas reduz caixa */
+    INVESTMENT(false, true),
 
-    /** Gastos pessoais pagos pelo caixa da empresa (não recomendados) */
-    PERSONAL_EXPENSE,
+    /** Impostos do período (DAS etc) — afetam lucro e caixa */
+    TAX(true, true),
 
-    /** Outras despesas que não se encaixam nas anteriores */
-    OTHER_EXPENSE,
+    /** Despesas pessoais pagas pelo caixa — afetam lucro e caixa */
+    PERSONAL_EXPENSE(true, true),
 
-    // === TRANSFERS (TRANSFERÊNCIAS) ===
+    /** Outras despesas — afetam lucro e caixa */
+    OTHER_EXPENSE(true, true),
 
-    /** Transferência interna - saída (não afeta lucro líquido) */
-    INTERNAL_TRANSFER_OUT,
 
-    /** Transferência interna - entrada (não afeta lucro líquido) */
-    INTERNAL_TRANSFER_IN
+    // === TRANSFERS ===
+
+    /** Saída entre contas internas — só mexe no caixa, não lucro */
+    INTERNAL_TRANSFER_OUT(false, true),
+
+    /** Entrada entre contas internas — só mexe no caixa, não lucro */
+    INTERNAL_TRANSFER_IN(false, true);
+
+
+    private final boolean affectsProfit;
+    private final boolean affectsCash;
+
 }

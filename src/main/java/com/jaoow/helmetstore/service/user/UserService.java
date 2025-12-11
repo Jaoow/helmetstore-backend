@@ -71,7 +71,7 @@ public class UserService implements UserDetailsService {
 
     public UserResponse register(UserRegisterRequest userRegisterRequest) {
         if (userRepository.existsByEmail(userRegisterRequest.getEmail())) {
-            throw new EmailAlreadyInUseException("Email already in use");
+            throw new EmailAlreadyInUseException();
         }
 
         User user = new User();

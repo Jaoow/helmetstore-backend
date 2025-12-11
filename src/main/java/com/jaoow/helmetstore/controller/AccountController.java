@@ -6,13 +6,10 @@ import com.jaoow.helmetstore.dto.balance.CashFlowSummaryDTO;
 import com.jaoow.helmetstore.dto.balance.MonthlyCashFlowDTO;
 import com.jaoow.helmetstore.dto.balance.MonthlyProfitDTO;
 import com.jaoow.helmetstore.dto.balance.ProfitSummaryDTO;
-import com.jaoow.helmetstore.dto.balance.ReinvestmentRequestDTO;
-import com.jaoow.helmetstore.dto.balance.ReinvestmentResponseDTO;
 import com.jaoow.helmetstore.dto.balance.TransactionCreateDTO;
 import com.jaoow.helmetstore.service.AccountService;
 import com.jaoow.helmetstore.service.CashFlowService;
 import com.jaoow.helmetstore.service.ProfitTrackingService;
-import com.jaoow.helmetstore.service.ReinvestmentService;
 import com.jaoow.helmetstore.service.TransactionService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -32,7 +29,6 @@ public class AccountController {
     private final TransactionService transactionService;
     private final CashFlowService cashFlowService;
     private final ProfitTrackingService profitTrackingService;
-    private final ReinvestmentService reinvestmentService;
 
     @GetMapping
     public List<AccountInfo> getAccountInfo(Principal principal) {
@@ -131,10 +127,17 @@ public class AccountController {
         accountService.convertBalance(conversionDTO, principal);
     }
 
+    /**
+     * @deprecated Reinvestment concept removed. "Reinvesting" is simply NOT withdrawing profit.
+     * Use PROFIT_WITHDRAWAL transaction type for withdrawals instead.
+     * This endpoint is kept for backward compatibility but will be removed in future versions.
+     */
+    @Deprecated(since = "2.0.3", forRemoval = true)
     @PostMapping("/reinvest")
-    public ReinvestmentResponseDTO reinvest(@Valid @RequestBody ReinvestmentRequestDTO reinvestmentRequestDTO,
-            Principal principal) {
-        return reinvestmentService.executeReinvestment(reinvestmentRequestDTO, principal);
+    public void reinvest(@Valid @RequestBody Object reinvestmentRequestDTO, Principal principal) {
+        throw new UnsupportedOperationException(
+            "Reinvestment feature has been removed. Use profit withdrawal transactions instead. " +
+            "Profit that is not withdrawn automatically stays in the company cash balance.");
     }
 
 }
