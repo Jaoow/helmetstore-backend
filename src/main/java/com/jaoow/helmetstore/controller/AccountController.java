@@ -11,7 +11,6 @@ import com.jaoow.helmetstore.service.AccountService;
 import com.jaoow.helmetstore.service.CashFlowService;
 import com.jaoow.helmetstore.service.ProfitTrackingService;
 import com.jaoow.helmetstore.service.TransactionService;
-// REMOVED: ReinvestmentService - use simple PROFIT_WITHDRAWAL transactions instead
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -30,7 +29,6 @@ public class AccountController {
     private final TransactionService transactionService;
     private final CashFlowService cashFlowService;
     private final ProfitTrackingService profitTrackingService;
-    // REMOVED: ReinvestmentService - use simple PROFIT_WITHDRAWAL transactions instead
 
     @GetMapping
     public List<AccountInfo> getAccountInfo(Principal principal) {

@@ -32,7 +32,6 @@ public class InventoryItemService {
         Inventory inventory = inventoryHelper.getInventoryFromPrincipal(principal);
         for (VariantStockUpdateDTO stockUpdateDTO : dto) {
 
-            // TODO: Implement history tracking for stock updates
             inventoryItemRepository.updateStock(stockUpdateDTO.getVariantId(), stockUpdateDTO.getStock(), inventory);
         }
     }
