@@ -43,11 +43,91 @@ public class Transaction {
     @JoinColumn(name = "account_id", nullable = false)
     private Account account;
 
-    public boolean affectsWithdrawableProfit() {
-        if (type == TransactionType.EXPENSE) {
-            return detail != TransactionDetail.COST_OF_GOODS_SOLD
-                    && detail != TransactionDetail.INTERNAL_TRANSFER_OUT;
+    // ============================================================================
+    // DOUBLE-ENTRY LEDGER FLAGS
+    // ============================================================================
+    // These flags enable clean separation of Cash Flow vs Profitability reporting
+    // without complex JOINs or hardcoded business logic in queries.
+    // ============================================================================
+
+    /**
+     * Indicates whether this transaction affects Net Profit calculation.
+     * <p>
+     * TRUE for:
+     * - Revenue (SALE)
+     * - Cost of Goods Sold (COGS)
+     * - Operational Expenses (FIXED_EXPENSE, VARIABLE_EXPENSE, etc.)
+     * <p>
+     * FALSE for:
+     * - Owner Investments (OWNER_INVESTMENT)
+     * - Internal Transfers (INTERNAL_TRANSFER_IN/OUT)
+     * - Stock Purchases (asset transfer, not an expense)
+     */
+    @Column(nullable = false)
+    private boolean affectsProfit;
+
+    /**
+     * Indicates whether this transaction affects Cash/Bank balance.
+     * <p>
+     * TRUE for:
+     * - Sales Revenue (money received)
+     * - Bill Payments (money spent)
+     * - Stock Purchases (money spent)
+     * - Owner Investments (money deposited)
+     * <p>
+     * FALSE for:
+     * - Cost of Goods Sold (accounting entry only, no cash movement)
+     */
+    @Column(nullable = false)
+    private boolean affectsCash;
+
+    /**
+     * Specifies which wallet/account the cash movement affects.
+     * <p>
+     * Values:
+     * - CASH: Physical cash drawer
+     * - BANK: Bank account (PIX/Card transactions)
+     * - NULL: Non-cash transactions (e.g., COGS)
+     * <p>
+     * This enables accurate per-wallet balance calculations:
+     * - Cash Balance = SUM(amount WHERE walletDestination = 'CASH')
+     * - Bank Balance = SUM(amount WHERE walletDestination = 'BANK')
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20)
+    private AccountType walletDestination;
+
+    /**
+     * Validates business rules before persisting or updating the transaction.
+     * <p>
+     * CRITICAL RULE: EXPENSE transactions MUST have negative amounts.
+     * INCOME transactions MUST have positive amounts.
+     * <p>
+     * This prevents bugs where expenses are accidentally stored as positive values,
+     * which would corrupt cash flow, profit calculations, and wallet balances.
+     */
+    @PrePersist
+    @PreUpdate
+    private void validateTransactionRules() {
+        if (type == null || amount == null) {
+            throw new IllegalStateException("Transaction type and amount must not be null");
         }
-        return false;
+
+        // CRITICAL: Expenses must be negative, Income must be positive
+        if (type == TransactionType.EXPENSE && amount.compareTo(BigDecimal.ZERO) > 0) {
+            throw new IllegalStateException(
+                String.format("EXPENSE transactions must have negative amounts. " +
+                    "Transaction type: %s, Amount: %s, Description: %s",
+                    type, amount, description)
+            );
+        }
+
+        if (type == TransactionType.INCOME && amount.compareTo(BigDecimal.ZERO) < 0) {
+            throw new IllegalStateException(
+                String.format("INCOME transactions must have positive amounts. " +
+                    "Transaction type: %s, Amount: %s, Description: %s",
+                    type, amount, description)
+            );
+        }
     }
 }

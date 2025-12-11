@@ -1,6 +1,5 @@
 package com.jaoow.helmetstore.controller;
 
-import com.jaoow.helmetstore.dto.FinancialSummaryDTO;
 import com.jaoow.helmetstore.dto.info.ProductStockDto;
 import com.jaoow.helmetstore.dto.summary.ProductSalesAndStockSummary;
 import com.jaoow.helmetstore.dto.summary.ProductVariantSaleSummary;
@@ -38,10 +37,5 @@ public class ReportController {
     @GetMapping("/most-sold-products")
     public List<ProductVariantSaleSummary> getMostSoldProducts(Principal principal) {
         return reportService.getMostSoldProducts(principal);
-    }
-
-    @GetMapping("/revenue-profit")
-    public FinancialSummaryDTO getRevenueAndProfit(Principal principal) {
-        return reportService.getRevenueAndProfit(principal);
     }
 }

@@ -17,6 +17,7 @@ import java.security.Principal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -42,7 +43,7 @@ public class AccountService {
         }
 
         return accounts.stream()
-                .filter(account -> account != null)
+                .filter(Objects::nonNull)
                 .map(account -> {
                     AccountInfo accountInfo = modelMapper.map(account, AccountInfo.class);
                     accountInfo.setBalance(calculateAccountBalance(account));
@@ -149,7 +150,7 @@ public class AccountService {
                 .type(TransactionType.EXPENSE)
                 .detail(TransactionDetail.INTERNAL_TRANSFER_OUT) // Transferência interna
                 .description(description)
-                .amount(conversionDTO.getAmount())
+                .amount(conversionDTO.getAmount().negate()) // FIX: Negate expense amount
                 .paymentMethod(fromPaymentMethod)
                 .reference(reference)
                 .account(fromAccount)

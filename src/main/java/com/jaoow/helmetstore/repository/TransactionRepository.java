@@ -1,10 +1,12 @@
 package com.jaoow.helmetstore.repository;
 
+import com.jaoow.helmetstore.model.balance.AccountType;
 import com.jaoow.helmetstore.model.balance.Transaction;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -31,4 +33,127 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
                      "FROM Transaction t JOIN t.account a WHERE a.user.email = :userEmail " +
                      "ORDER BY year DESC, month DESC")
        List<Object[]> findDistinctMonthsByUserEmail(@Param("userEmail") String userEmail);
+
+       // ============================================================================
+       // DOUBLE-ENTRY LEDGER QUERIES
+       // ============================================================================
+       // These queries use the new ledger flags (affectsProfit, affectsCash,
+       // walletDestination) to provide accurate financial reporting without
+       // hardcoded business logic.
+       // ============================================================================
+
+       /**
+        * Calculate Real Net Profit for a user within a date range.
+        * <p>
+        * Formula: SUM(amount) WHERE affectsProfit = true
+        * <p>
+        * Includes: Revenue, COGS, Operational Expenses
+        * Excludes: Stock Purchases, Owner Investments, Internal Transfers
+        */
+       @Query("SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t " +
+                     "JOIN t.account a " +
+                     "WHERE a.user.email = :userEmail " +
+                     "AND t.affectsProfit = true " +
+                     "AND t.date >= :startDate AND t.date < :endDate")
+       BigDecimal calculateNetProfitByDateRange(
+                     @Param("userEmail") String userEmail,
+                     @Param("startDate") LocalDateTime startDate,
+                     @Param("endDate") LocalDateTime endDate);
+
+       /**
+        * Calculate Cash Balance for a specific wallet (CASH or BANK).
+        * <p>
+        * Formula: SUM(amount) WHERE walletDestination = :walletType
+        * <p>
+        * Example: Cash Balance = SUM(amount WHERE walletDestination = 'CASH')
+        */
+       @Query("SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t " +
+                     "JOIN t.account a " +
+                     "WHERE a.user.email = :userEmail " +
+                     "AND t.walletDestination = :walletType")
+       BigDecimal calculateWalletBalance(
+                     @Param("userEmail") String userEmail,
+                     @Param("walletType") AccountType walletType);
+
+       /**
+        * Calculate Total Cash Flow (all liquidity movement) within a date range.
+        * <p>
+        * Formula: SUM(amount) WHERE affectsCash = true
+        * <p>
+        * Includes: All physical money in/out (Sales, Expenses, Investments)
+        * Excludes: COGS (accounting entry only)
+        */
+       @Query("SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t " +
+                     "JOIN t.account a " +
+                     "WHERE a.user.email = :userEmail " +
+                     "AND t.affectsCash = true " +
+                     "AND t.date >= :startDate AND t.date < :endDate")
+       BigDecimal calculateCashFlowByDateRange(
+                     @Param("userEmail") String userEmail,
+                     @Param("startDate") LocalDateTime startDate,
+                     @Param("endDate") LocalDateTime endDate);
+
+       /**
+        * Get all profit-affecting transactions for detailed reporting.
+        * Useful for drilling down into what contributes to Net Profit.
+        */
+       @Query("SELECT t FROM Transaction t " +
+                     "JOIN t.account a " +
+                     "WHERE a.user.email = :userEmail " +
+                     "AND t.affectsProfit = true " +
+                     "AND t.date >= :startDate AND t.date < :endDate " +
+                     "ORDER BY t.date DESC")
+       List<Transaction> findProfitAffectingTransactionsByDateRange(
+                     @Param("userEmail") String userEmail,
+                     @Param("startDate") LocalDateTime startDate,
+                     @Param("endDate") LocalDateTime endDate);
+
+       /**
+        * Get all transactions for a specific wallet within a date range.
+        * Useful for generating Cash/Bank statements.
+        */
+       @Query("SELECT t FROM Transaction t " +
+                     "JOIN t.account a " +
+                     "WHERE a.user.email = :userEmail " +
+                     "AND t.walletDestination = :walletType " +
+                     "AND t.date >= :startDate AND t.date < :endDate " +
+                     "ORDER BY t.date DESC")
+       List<Transaction> findWalletTransactionsByDateRange(
+                     @Param("userEmail") String userEmail,
+                     @Param("walletType") AccountType walletType,
+                     @Param("startDate") LocalDateTime startDate,
+                     @Param("endDate") LocalDateTime endDate);
+
+       /**
+        * Calculate Gross Profit (Revenue - COGS only) for all time.
+        * <p>
+        * Formula: SUM(amount) WHERE detail IN ('SALE', 'COST_OF_GOODS_SOLD') AND reference LIKE 'SALE#%'
+        * <p>
+        * Includes: Sales Revenue (+), COGS from sales (-)
+        * Excludes: Operational expenses, Purchase Orders
+        */
+       @Query("SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t " +
+                     "JOIN t.account a " +
+                     "WHERE a.user.email = :userEmail " +
+                     "AND (t.detail = 'SALE' OR " +
+                     "(t.detail = 'COST_OF_GOODS_SOLD' AND t.reference LIKE 'SALE#%'))")
+       BigDecimal calculateGrossProfit(@Param("userEmail") String userEmail);
+
+       /**
+        * Calculate Gross Profit (Revenue - COGS only) for a date range.
+        * <p>
+        * Formula: SUM(amount) WHERE detail IN ('SALE', 'COST_OF_GOODS_SOLD') AND reference LIKE 'SALE#%'
+        * <p>
+        * Use this for monthly/quarterly gross profit reports.
+        */
+       @Query("SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t " +
+                     "JOIN t.account a " +
+                     "WHERE a.user.email = :userEmail " +
+                     "AND (t.detail = 'SALE' OR " +
+                     "(t.detail = 'COST_OF_GOODS_SOLD' AND t.reference LIKE 'SALE#%')) " +
+                     "AND t.date >= :startDate AND t.date < :endDate")
+       BigDecimal calculateGrossProfitByDateRange(
+                     @Param("userEmail") String userEmail,
+                     @Param("startDate") LocalDateTime startDate,
+                     @Param("endDate") LocalDateTime endDate);
 }
