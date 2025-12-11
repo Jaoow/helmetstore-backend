@@ -145,6 +145,10 @@ public class AccountService {
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime toTransactionTime = now.plusSeconds(2);
 
+        // Determine wallet destinations based on account types
+        AccountType fromWalletDest = conversionDTO.getFromAccountType();
+        AccountType toWalletDest = conversionDTO.getToAccountType();
+
         Transaction fromTransaction = Transaction.builder()
                 .date(now)
                 .type(TransactionType.EXPENSE)
@@ -154,6 +158,11 @@ public class AccountService {
                 .paymentMethod(fromPaymentMethod)
                 .reference(reference)
                 .account(fromAccount)
+                // DOUBLE-ENTRY LEDGER FLAGS
+                // Internal transfers affect cash but NOT profit (money movement between accounts)
+                .affectsProfit(false)  // Doesn't affect profit calculation
+                .affectsCash(true)     // Does affect cash balance
+                .walletDestination(fromWalletDest)  // Which wallet is being debited
                 .build();
 
         Transaction toTransaction = Transaction.builder()
@@ -165,6 +174,11 @@ public class AccountService {
                 .paymentMethod(toPaymentMethod)
                 .reference(reference)
                 .account(toAccount)
+                // DOUBLE-ENTRY LEDGER FLAGS
+                // Internal transfers affect cash but NOT profit (money movement between accounts)
+                .affectsProfit(false)  // Doesn't affect profit calculation
+                .affectsCash(true)     // Does affect cash balance
+                .walletDestination(toWalletDest)  // Which wallet is being credited
                 .build();
 
         Transaction savedFromTransaction = transactionRepository.save(fromTransaction);

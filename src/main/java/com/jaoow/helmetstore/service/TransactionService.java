@@ -45,11 +45,7 @@ public class TransactionService {
 
         transaction.setAccount(account);
 
-        // ============================================================================
-        // FIX: Ensure expenses are stored as negative values
-        // ============================================================================
-        // The frontend sends positive values for both income and expenses.
-        // We need to negate the amount if it's an expense.
+        // Ensure expenses are stored as negative values
         if (dto.getType() == TransactionType.EXPENSE && dto.getAmount().compareTo(BigDecimal.ZERO) > 0) {
             transaction.setAmount(dto.getAmount().negate());
         }
@@ -59,14 +55,12 @@ public class TransactionService {
                 ? AccountType.CASH
                 : AccountType.BANK;
 
-        // Determine if transaction affects profit (most do, except transfers and investments)
-        boolean affectsProfit = transaction.getDetail() != TransactionDetail.INTERNAL_TRANSFER_IN
-                && transaction.getDetail() != TransactionDetail.INTERNAL_TRANSFER_OUT
-                && transaction.getDetail() != TransactionDetail.OWNER_INVESTMENT;
 
         // All manual transactions affect cash (they represent real money movement)
-        transaction.setAffectsProfit(affectsProfit);
-        transaction.setAffectsCash(true);
+        TransactionDetail detail = transaction.getDetail();
+
+        transaction.setAffectsProfit(detail.isAffectsProfit());
+        transaction.setAffectsCash(detail.isAffectsCash());
         transaction.setWalletDestination(walletDest);
 
         transactionRepository.save(transaction);
@@ -207,7 +201,7 @@ public class TransactionService {
         Transaction transaction = Transaction.builder()
                 .date(purchaseOrder.getDate().atStartOfDay())
                 .type(TransactionType.EXPENSE)
-                .detail(TransactionDetail.COST_OF_GOODS_SOLD)
+                .detail(TransactionDetail.INVENTORY_PURCHASE)
                 .description(PURCHASE_ORDER_REFERENCE_PREFIX + purchaseOrder.getOrderNumber())
                 .amount(purchaseOrder.getTotalAmount().negate()) // FIX: Negate expense amount
                 .paymentMethod(purchaseOrder.getPaymentMethod())
@@ -215,7 +209,7 @@ public class TransactionService {
                 .account(account)
                 // DOUBLE-ENTRY LEDGER FLAGS
                 // Stock purchase affects cash (money out) but NOT profit (it's an asset transfer)
-                .affectsProfit(false)  // Buying stock doesn't reduce profit (yet)
+                .affectsProfit(false)  // Buying stock doesn't reduce profit
                 .affectsCash(true)     // But it does reduce available cash
                 .walletDestination(walletDest)
                 .build();
@@ -242,9 +236,7 @@ public class TransactionService {
         // Update the existing transaction with new data
         modelMapper.map(dto, transaction);
 
-        // ============================================================================
-        // FIX: Ensure expenses are stored as negative values when updating
-        // ============================================================================
+        // Ensure expenses are stored as negative values
         if (dto.getType() == TransactionType.EXPENSE && dto.getAmount().compareTo(BigDecimal.ZERO) > 0) {
             transaction.setAmount(dto.getAmount().negate());
         }
@@ -287,8 +279,7 @@ public class TransactionService {
                                 + purchaseOrder.getId()));
 
         transactionRepository.delete(transaction);
-        // Invalidate financial caches after removing transaction linked to purchase
-        // order
+        // Invalidate financial caches after removing transaction linked to purchase order
         cacheInvalidationService.invalidateFinancialCaches();
     }
 

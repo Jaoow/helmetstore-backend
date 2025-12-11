@@ -61,9 +61,9 @@ public class ProfitCalculationService {
         List<Transaction> transactions = transactionRepository.findByAccountUserEmail(userEmail);
 
         BigDecimal netProfit = transactions.stream()
-                .filter(Transaction::isAffectsProfit) // All profit-affecting transactions
-                .map(Transaction::getAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+            .filter(Transaction::isAffectsProfit) // All profit-affecting transactions
+            .map(Transaction::getAmount)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         log.debug("Total net profit for {}: {}", userEmail, netProfit);
         return netProfit;
@@ -98,24 +98,12 @@ public class ProfitCalculationService {
      * @return Net Profit
      */
     public BigDecimal calculateNetProfitFromTransactions(List<Transaction> transactions) {
-
-        log.info("Calculating net profit from {} transactions", transactions.size());
-
-        // Check if there are COGS in the transactions for logging
-        boolean hasCogs = transactions.stream()
-                .anyMatch(t -> t.getDetail() == TransactionDetail.COST_OF_GOODS_SOLD && t.isAffectsProfit()); // COGS from sales affect profit
-
-        if (hasCogs) {
-            log.info("Transactions include Cost of Goods Sold (COGS) entries");
-        }
-        else {
-            log.info("Transactions do not include Cost of Goods Sold (COGS) entries");
-        }
+        log.debug("Calculating net profit from {} transactions", transactions.size());
 
         return transactions.stream()
-                .filter(Transaction::isAffectsProfit)
-                .map(Transaction::getAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+            .filter(Transaction::isAffectsProfit)
+            .map(Transaction::getAmount)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
     // ============================================================================
@@ -154,7 +142,7 @@ public class ProfitCalculationService {
      * @return Gross Profit for the period
      */
     public BigDecimal calculateGrossProfitByDateRange(Inventory inventory, LocalDateTime startDate,
-            LocalDateTime endDate) {
+                                                      LocalDateTime endDate) {
         log.debug("Calculating gross profit for inventory {} from {} to {}", inventory.getId(), startDate, endDate);
 
         return saleRepository.getTotalProfitByDateRange(inventory, startDate, endDate);
@@ -187,11 +175,11 @@ public class ProfitCalculationService {
         List<Transaction> transactions = transactionRepository.findByAccountUserEmail(userEmail);
 
         BigDecimal expenses = transactions.stream()
-                .filter(Transaction::isAffectsProfit) // Affects profit
-                .filter(t -> t.getAmount().compareTo(BigDecimal.ZERO) < 0) // Negative = expense
-                .filter(t -> t.getDetail() != TransactionDetail.COST_OF_GOODS_SOLD) // Exclude COGS
-                .map(Transaction::getAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+            .filter(Transaction::isAffectsProfit) // Affects profit
+            .filter(t -> t.getAmount().compareTo(BigDecimal.ZERO) < 0) // Negative = expense
+            .filter(t -> t.getDetail() != TransactionDetail.COST_OF_GOODS_SOLD) // Exclude COGS
+            .map(Transaction::getAmount)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         log.debug("Total operational expenses for {}: {}", userEmail, expenses);
         return expenses;
@@ -206,18 +194,18 @@ public class ProfitCalculationService {
      * @return Operational expenses for the period (as negative number)
      */
     public BigDecimal calculateOperationalExpensesByDateRange(String userEmail, LocalDateTime startDate,
-            LocalDateTime endDate) {
+                                                              LocalDateTime endDate) {
         log.debug("Calculating operational expenses for user {} from {} to {}", userEmail, startDate, endDate);
 
         List<Transaction> transactions = transactionRepository.findByAccountUserEmailAndDateRange(userEmail, startDate,
-                endDate);
+            endDate);
 
         BigDecimal expenses = transactions.stream()
-                .filter(Transaction::isAffectsProfit)
-                .filter(t -> t.getAmount().compareTo(BigDecimal.ZERO) < 0)
-                .filter(t -> t.getDetail() != TransactionDetail.COST_OF_GOODS_SOLD)
-                .map(Transaction::getAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+            .filter(Transaction::isAffectsProfit)
+            .filter(t -> t.getAmount().compareTo(BigDecimal.ZERO) < 0)
+            .filter(t -> t.getDetail() != TransactionDetail.COST_OF_GOODS_SOLD)
+            .map(Transaction::getAmount)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         log.debug("Operational expenses for period: {}", expenses);
         return expenses;
@@ -231,11 +219,11 @@ public class ProfitCalculationService {
      */
     public BigDecimal calculateOperationalExpensesFromTransactions(List<Transaction> transactions) {
         return transactions.stream()
-                .filter(Transaction::isAffectsProfit)
-                .filter(t -> t.getAmount().compareTo(BigDecimal.ZERO) < 0)
-                .filter(t -> t.getDetail() != TransactionDetail.COST_OF_GOODS_SOLD)
-                .map(Transaction::getAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+            .filter(Transaction::isAffectsProfit)
+            .filter(t -> t.getAmount().compareTo(BigDecimal.ZERO) < 0)
+            .filter(t -> t.getDetail() != TransactionDetail.COST_OF_GOODS_SOLD)
+            .map(Transaction::getAmount)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
     // ============================================================================
@@ -285,7 +273,7 @@ public class ProfitCalculationService {
 
         if (!isConsistent) {
             log.warn("Profit inconsistency detected for user {}. Net Profit ({}) > Gross Profit ({})",
-                    userEmail, netProfit, grossProfit);
+                userEmail, netProfit, grossProfit);
         }
 
         return isConsistent;
@@ -304,11 +292,11 @@ public class ProfitCalculationService {
         BigDecimal operationalExpenses = calculateTotalOperationalExpenses(userEmail);
 
         return ProfitBreakdown.builder()
-                .netProfit(netProfit)
-                .grossProfit(grossProfit)
-                .operationalExpenses(operationalExpenses)
-                .cogsImplied(grossProfit.subtract(netProfit).subtract(operationalExpenses))
-                .build();
+            .netProfit(netProfit)
+            .grossProfit(grossProfit)
+            .operationalExpenses(operationalExpenses)
+            .cogsImplied(grossProfit.subtract(netProfit).subtract(operationalExpenses))
+            .build();
     }
 
     // ============================================================================

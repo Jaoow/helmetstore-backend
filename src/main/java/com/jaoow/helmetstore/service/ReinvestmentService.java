@@ -24,6 +24,13 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.List;
 
+/**
+ * @deprecated This service is deprecated as of version 2.0.3 and will be removed in future versions.
+ * Reinvestment concept has been removed from the system.
+ * "Reinvesting" is simply NOT withdrawing profit - it automatically stays in the company cash balance.
+ * Use PROFIT_WITHDRAWAL transaction type for withdrawals instead.
+ */
+@Deprecated(since = "2.0.3", forRemoval = true)
 @Slf4j
 @Service
 @RequiredArgsConstructor

@@ -26,7 +26,7 @@ public class MonthlyProfitDTO {
 
     private BigDecimal monthlyProfit; // Gross Profit (Revenue - COGS)
     private BigDecimal monthlyNetProfit; // Net Profit (Revenue - COGS - Expenses)
-    private BigDecimal accumulatedNetProfit;
+    // REMOVED: accumulatedNetProfit - use totalBalance (cash balance) instead
     private BigDecimal monthlyExpenseTransactions;
 
     private List<TransactionInfo> expenseTransactions;

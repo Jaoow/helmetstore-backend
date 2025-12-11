@@ -80,7 +80,7 @@ public class ProfitTrackingService {
             .toList();
 
         List<MonthlyProfitDTO> result = new ArrayList<>();
-        BigDecimal accumulatedNetProfit = BigDecimal.ZERO;
+        // REMOVED: accumulatedNetProfit calculation - use cash balance instead
 
         for (YearMonth yearMonth : sortedMonths) {
             Map<String, BigDecimal> cumulativeBalances = calculateCumulativeAccountBalancesUpToMonth(
@@ -90,11 +90,10 @@ public class ProfitTrackingService {
             MonthlyProfitDTO monthlyData = getMonthlyProfit(principal, yearMonth);
 
             // ============================================================================
-            // FIX: Use actual Net Profit instead of manually calculating it
+            // ACCOUNTING FIX: Show cash balance, not "accumulated profit"
             // ============================================================================
-            // monthlyNetProfit already includes (Revenue - COGS - All Expenses)
-            accumulatedNetProfit = accumulatedNetProfit.add(monthlyData.getMonthlyNetProfit());
-
+            // The totalBalance already represents available cash (what wasn't withdrawn)
+            
             MonthlyProfitDTO monthlyWithCumulativeBalance = MonthlyProfitDTO.builder()
                 .month(yearMonth)
                 .bankAccountBalance(cumulativeBalances.get("bank"))
@@ -103,7 +102,7 @@ public class ProfitTrackingService {
                     .add(cumulativeBalances.get("cash")))
                 .monthlyProfit(monthlyData.getMonthlyProfit()) // Gross Profit
                 .monthlyNetProfit(monthlyData.getMonthlyNetProfit()) // Net Profit
-                .accumulatedNetProfit(accumulatedNetProfit)
+                // REMOVED: accumulatedNetProfit - totalBalance shows actual available cash
                 .monthlyExpenseTransactions(
                     monthlyData.getMonthlyExpenseTransactions())
                 .expenseTransactions(monthlyData.getExpenseTransactions())
