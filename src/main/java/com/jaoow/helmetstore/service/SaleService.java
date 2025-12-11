@@ -335,9 +335,7 @@ public class SaleService {
     private void validateStock(InventoryItem item, int requiredQuantity) {
         if (item.getQuantity() < requiredQuantity) {
             throw new InsufficientStockException(
-                    "Insufficient stock for variant ID: " + item.getProductVariant().getId() +
-                            ". Available: " + item.getQuantity() + ", Required: "
-                            + requiredQuantity);
+                    item.getProductVariant().getId(), item.getQuantity(), requiredQuantity);
         }
     }
 

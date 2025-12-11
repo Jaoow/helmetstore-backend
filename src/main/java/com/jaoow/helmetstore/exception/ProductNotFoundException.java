@@ -1,7 +1,7 @@
 package com.jaoow.helmetstore.exception;
 
-public class ProductNotFoundException extends RuntimeException {
+public class ProductNotFoundException extends ResourceNotFoundException {
     public ProductNotFoundException(Long id) {
-        super("Product not found with ID: " + id);
+        super("Produto não encontrado com ID: " + id);
     }
 }

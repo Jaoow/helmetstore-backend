@@ -27,11 +27,11 @@ public class OrderPDFExtractorController {
             file.transferTo(tempFile);
             OrderSummaryDTO orderSummary = orderPDFExtractorService.extractOrderSummary(tempFile);
             if (!tempFile.delete()) {
-                throw new RuntimeException("Error deleting temporary file");
+                throw new RuntimeException("Erro ao deletar arquivo temporário");
             }
             return orderSummary;
         } catch (IOException e) {
-            throw new RuntimeException("Error processing PDF file", e);
+            throw new RuntimeException("Erro ao processar arquivo PDF", e);
         }
     }
 }

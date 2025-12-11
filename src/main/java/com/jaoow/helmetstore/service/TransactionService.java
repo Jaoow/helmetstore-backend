@@ -40,8 +40,7 @@ public class TransactionService {
     public void createManualTransaction(TransactionCreateDTO dto, Principal principal) {
         Transaction transaction = modelMapper.map(dto, Transaction.class);
         Account account = accountService.findAccountByPaymentMethodAndUser(dto.getPaymentMethod(), principal)
-                .orElseThrow(() -> new AccountNotFoundException(
-                        "No account found for the given payment method."));
+                .orElseThrow(() -> new AccountNotFoundException(dto.getPaymentMethod()));
 
         transaction.setAccount(account);
 
@@ -105,8 +104,7 @@ public class TransactionService {
 
             Account account = accountService
                     .findAccountByPaymentMethodAndUser(payment.getPaymentMethod(), principal)
-                    .orElseThrow(() -> new AccountNotFoundException(
-                            "No account found for the given payment method."));
+                    .orElseThrow(() -> new AccountNotFoundException(payment.getPaymentMethod()));
 
             Transaction revenueTx = Transaction.builder()
                     .date(date)
@@ -162,8 +160,7 @@ public class TransactionService {
             // Use the primary account for linking (COGS doesn't belong to a specific wallet)
             Account systemAccount = accountService
                     .findAccountByPaymentMethodAndUser(PaymentMethod.CASH, principal)
-                    .orElseThrow(() -> new AccountNotFoundException(
-                            "No default account found for COGS recording."));
+                    .orElseThrow(() -> new AccountNotFoundException(PaymentMethod.CASH));
 
             Transaction cogsTx = Transaction.builder()
                     .date(date)
@@ -190,8 +187,7 @@ public class TransactionService {
     @Transactional
     public void recordTransactionFromPurchaseOrder(PurchaseOrder purchaseOrder, Principal principal) {
         Account account = accountService.findAccountByPaymentMethodAndUser(purchaseOrder.getPaymentMethod(), principal)
-                .orElseThrow(() -> new AccountNotFoundException(
-                        "No account found for the given payment method."));
+                .orElseThrow(() -> new AccountNotFoundException(purchaseOrder.getPaymentMethod()));
 
         // Determine wallet destination based on payment method
         AccountType walletDest = (purchaseOrder.getPaymentMethod() == PaymentMethod.CASH)
@@ -242,8 +238,7 @@ public class TransactionService {
         }
 
         Account account = accountService.findAccountByPaymentMethodAndUser(dto.getPaymentMethod(), principal)
-                .orElseThrow(() -> new AccountNotFoundException(
-                        "Nenhuma conta encontrada para o método de pagamento informado."));
+                .orElseThrow(() -> new AccountNotFoundException(dto.getPaymentMethod()));
 
         transaction.setAccount(account);
         transactionRepository.save(transaction);
@@ -289,7 +284,7 @@ public class TransactionService {
         List<Transaction> transactions = transactionRepository.findAllByReference(reference);
 
         if (transactions.isEmpty()) {
-            throw new IllegalArgumentException("Transaction not found for sale ID: " + sale.getId());
+            throw new IllegalArgumentException("Transação não encontrada para venda ID: " + sale.getId());
         }
 
         transactionRepository.deleteAll(transactions);
