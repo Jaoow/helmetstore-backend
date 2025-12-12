@@ -1,5 +1,5 @@
 # Etapa 1: Build com Maven usando JDK 21
-FROM amazoncorretto:21-alpine-jdk AS build
+FROM eclipse-temurin:21-jdk-alpine AS build
 
 # Define diretório de trabalho
 WORKDIR /app
@@ -19,7 +19,7 @@ COPY src src
 RUN ./mvnw clean package -DskipTests -B
 
 # Etapa 2: Imagem final para execução da aplicação
-FROM amazoncorretto:21-alpine-jre
+FROM eclipse-temurin:21-jre-alpine
 
 # Cria usuário não-root
 RUN addgroup -S app && adduser -S app -G app
