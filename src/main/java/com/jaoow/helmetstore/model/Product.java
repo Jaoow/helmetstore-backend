@@ -28,5 +28,6 @@ public class Product {
     private Category category;
 
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL)
+    @Builder.Default
     private List<ProductVariant> variants = new ArrayList<>();
 }

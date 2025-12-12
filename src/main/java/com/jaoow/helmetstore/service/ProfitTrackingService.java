@@ -6,7 +6,6 @@ import com.jaoow.helmetstore.dto.balance.TransactionInfo;
 import com.jaoow.helmetstore.helper.InventoryHelper;
 import com.jaoow.helmetstore.model.balance.AccountType;
 import com.jaoow.helmetstore.model.balance.Transaction;
-import com.jaoow.helmetstore.repository.SaleRepository;
 import com.jaoow.helmetstore.repository.TransactionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,7 +28,6 @@ import java.util.stream.Collectors;
 public class ProfitTrackingService {
 
     private final TransactionRepository transactionRepository;
-    private final SaleRepository saleRepository;
     private final InventoryHelper inventoryHelper;
     private final ModelMapper modelMapper;
     private final AccountService accountService;

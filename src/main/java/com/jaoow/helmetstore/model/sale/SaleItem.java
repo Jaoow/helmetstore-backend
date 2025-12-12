@@ -3,7 +3,6 @@ package com.jaoow.helmetstore.model.sale;
 import com.jaoow.helmetstore.model.ProductVariant;
 import com.jaoow.helmetstore.model.Sale;
 import jakarta.persistence.*;
-import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import lombok.*;
 

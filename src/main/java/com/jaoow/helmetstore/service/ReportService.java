@@ -11,14 +11,12 @@ import com.jaoow.helmetstore.helper.InventoryHelper;
 import com.jaoow.helmetstore.model.PurchaseOrderStatus;
 import com.jaoow.helmetstore.model.inventory.Inventory;
 import com.jaoow.helmetstore.repository.InventoryItemRepository;
-import com.jaoow.helmetstore.repository.SaleRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
-import java.math.BigDecimal;
 import java.security.Principal;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -30,7 +28,6 @@ public class ReportService {
 
     public static final List<PurchaseOrderStatus> EXCLUDED_STATUSES = List.of(PurchaseOrderStatus.DELIVERED, PurchaseOrderStatus.CANCELED);
 
-    private final SaleRepository saleRepository;
     private final ModelMapper modelMapper;
     private final InventoryHelper inventoryHelper;
     private final InventoryItemRepository inventoryItemRepository;

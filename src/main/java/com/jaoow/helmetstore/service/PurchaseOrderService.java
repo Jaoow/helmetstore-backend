@@ -27,6 +27,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.security.Principal;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -226,7 +227,7 @@ public class PurchaseOrderService {
             BigDecimal totalQty = currentQty.add(newQty);
 
             BigDecimal newAverageCost = totalQty.compareTo(BigDecimal.ZERO) > 0 ?
-                totalCurrentValue.add(totalNewValue).divide(totalQty, 2, BigDecimal.ROUND_HALF_UP) :
+                totalCurrentValue.add(totalNewValue).divide(totalQty, RoundingMode.HALF_UP) :
                 newCost;
 
             inventoryItem.setAverageCost(newAverageCost);
