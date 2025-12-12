@@ -71,31 +71,7 @@ public class TransactionService {
     @Transactional
     public void recordTransactionFromSale(Sale sale, Principal principal) {
         LocalDateTime date = sale.getDate();
-
-        // =================================================================================
-        // PART 1: REVENUE (Money In) - Creates 1 Transaction per Payment Method
-        // =================================================================================
-        // IMPORTANT: Revenue transactions use PROPORTIONAL PROFIT, not payment amount!
-        //
-        // Why? Because:
-        //   - Payment amount = Cash received (affects_cash tracking)
-        //   - Profit amount = Revenue for P&L (affects_profit tracking)
-        //   - COGS is subtracted separately, so we need profit not revenue
-        //
-        // Example:
-        //   Sale: total_amount=125.00, total_profit=36.01 (profit margin ~29%)
-        //   Payment: CASH=100 (80%), PIX=25 (20%)
-        //   Revenue Tx 1: amount=28.81 (36.01 * 0.80) affects_profit=TRUE, affects_cash=TRUE
-        //   Revenue Tx 2: amount=7.20 (36.01 * 0.20) affects_profit=TRUE, affects_cash=TRUE
-        //   Result: Net Profit = 36.01 - Expenses (correct)
-        // =================================================================================
-
         sale.getPayments().forEach(payment -> {
-            // Calculate proportional profit for this payment
-            // Formula: (payment_amount / total_amount) * total_profit
-            BigDecimal paymentPercentage = payment.getAmount().divide(sale.getTotalAmount(), 10, BigDecimal.ROUND_HALF_UP);
-            BigDecimal proportionalProfit = sale.getTotalProfit()
-                    .multiply(paymentPercentage);
 
             // Determine which wallet receives the money (Cash drawer or Bank account)
             AccountType walletDest = (payment.getPaymentMethod() == PaymentMethod.CASH)
@@ -114,7 +90,7 @@ public class TransactionService {
                             + formatProductVariantName(
                                     sale.getItems().getFirst().getProductVariant())
                             + " (" + payment.getPaymentMethod() + ")")
-                    .amount(proportionalProfit) // ✅ FIXED: Use proportional profit, not payment amount
+                    .amount(payment.getAmount()) // ✅ FIXED: Use proportional profit, not payment amount
                     .paymentMethod(payment.getPaymentMethod())
                     .reference(SALE_REFERENCE_PREFIX + sale.getId())
                     .account(account)
@@ -126,14 +102,6 @@ public class TransactionService {
 
             transactionRepository.save(revenueTx);
         });
-
-        // =================================================================================
-        // PART 2: COGS (Cost of Goods Sold) - Value Out
-        // =================================================================================
-        // This represents the inventory cost being "consumed" by the sale.
-        // It's an accounting entry that reduces profit but does NOT affect cash
-        // (the cash was already spent when we purchased the stock).
-        // =================================================================================
 
         BigDecimal totalCostOfGoods = BigDecimal.ZERO;
 
