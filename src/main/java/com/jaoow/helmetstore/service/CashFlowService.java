@@ -36,11 +36,32 @@ public class CashFlowService {
     public CashFlowSummaryDTO getCashFlowSummary(Principal principal) {
         String userEmail = principal.getName();
 
+        // Get monthly breakdown first
+        List<MonthlyCashFlowDTO> monthlyBreakdown = getMonthlyCashFlowBreakdown(userEmail);
+
         // ============================================================================
-        // USE LEDGER SYSTEM: Wallet balances calculated from walletDestination
+        // FIXED: Use current month's balance, not historical cumulative balance
         // ============================================================================
-        BigDecimal bankBalance = accountService.calculateAccountBalanceByType(userEmail, AccountType.BANK);
-        BigDecimal cashBalance = accountService.calculateAccountBalanceByType(userEmail, AccountType.CASH);
+        // Find current month's data specifically
+        YearMonth currentYearMonth = YearMonth.now();
+        MonthlyCashFlowDTO currentMonth = monthlyBreakdown.stream()
+            .filter(m -> m.getMonth().equals(currentYearMonth))
+            .findFirst()
+            .orElse(null);
+
+        // If current month doesn't exist yet, calculate directly from ledger
+        BigDecimal bankBalance;
+        BigDecimal cashBalance;
+        
+        if (currentMonth != null) {
+            bankBalance = currentMonth.getBankAccountBalance();
+            cashBalance = currentMonth.getCashAccountBalance();
+        } else {
+            // Fallback: calculate from all transactions (shouldn't happen in normal operation)
+            bankBalance = accountService.calculateAccountBalanceByType(userEmail, AccountType.BANK);
+            cashBalance = accountService.calculateAccountBalanceByType(userEmail, AccountType.CASH);
+        }
+        
         BigDecimal totalBalance = bankBalance.add(cashBalance);
 
         // ============================================================================
@@ -69,8 +90,6 @@ public class CashFlowService {
                 .filter(Transaction::isAffectsCash)
                 .map(Transaction::getAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        List<MonthlyCashFlowDTO> monthlyBreakdown = getMonthlyCashFlowBreakdown(userEmail);
 
         return CashFlowSummaryDTO.builder()
                 .totalBankBalance(bankBalance)
