@@ -236,4 +236,78 @@ public class PurchaseOrderService {
             inventoryItemRepository.save(inventoryItem);
         }
     }
+
+    @Transactional(readOnly = true)
+    public boolean isOrderNumberAvailable(String orderNumber, Principal principal) {
+        Inventory inventory = inventoryHelper.getInventoryFromPrincipal(principal);
+        return !purchaseOrderRepository.existsByInventoryAndOrderNumber(inventory, orderNumber);
+    }
+
+    @Caching(evict = {
+            @CacheEvict(value = CacheNames.PRODUCT_INDICATORS, key = "#principal.name"),
+            @CacheEvict(value = CacheNames.MOST_SOLD_PRODUCTS, key = "#principal.name"),
+            @CacheEvict(value = CacheNames.PRODUCT_STOCK, key = "#principal.name"),
+            @CacheEvict(value = CacheNames.REVENUE_AND_PROFIT, key = "#principal.name"),
+            @CacheEvict(value = CacheNames.PURCHASE_ORDER_HISTORY, key = "#principal.name")
+    })
+    @Transactional
+    public PurchaseOrderDTO cancelOrderItem(Long orderId, Long itemId, CancelOrderItemDTO cancelDTO, Principal principal) {
+        Inventory inventory = inventoryHelper.getInventoryFromPrincipal(principal);
+        PurchaseOrder order = purchaseOrderRepository.findByIdAndInventoryWithItemsAndVariants(orderId, inventory)
+                .orElseThrow(() -> new OrderNotFoundException(orderId));
+
+        // Validar se o pedido já foi entregue
+        if (order.getStatus() == PurchaseOrderStatus.DELIVERED) {
+            throw new IllegalStateException("Não é possível cancelar itens de um pedido já entregue");
+        }
+
+        // Encontrar o item a ser cancelado
+        PurchaseOrderItem itemToCancel = order.getItems().stream()
+                .filter(item -> item.getId().equals(itemId))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Item não encontrado no pedido"));
+
+        // Validar se a quantidade a cancelar é válida
+        int quantityToCancel = cancelDTO.getQuantity();
+        if (quantityToCancel > itemToCancel.getQuantity()) {
+            throw new IllegalArgumentException(
+                "Quantidade a cancelar (" + quantityToCancel + ") é maior que a quantidade disponível (" + itemToCancel.getQuantity() + ")"
+            );
+        }
+
+        // Calcular o valor do item cancelado (proporcional)
+        BigDecimal itemAmount = itemToCancel.getPurchasePrice()
+                .multiply(BigDecimal.valueOf(quantityToCancel));
+
+        // Criar descrição do item para auditoria
+        String itemDescription = String.format("%s %s (Tam: %s) - %d unidade(s)",
+                itemToCancel.getProductVariant().getProduct().getModel(),
+                itemToCancel.getProductVariant().getProduct().getColor(),
+                itemToCancel.getProductVariant().getSize(),
+                quantityToCancel);
+
+        // Se cancelar tudo, remover o item
+        if (quantityToCancel == itemToCancel.getQuantity()) {
+            order.getItems().remove(itemToCancel);
+        } else {
+            // Se cancelar parcialmente, diminuir a quantidade
+            itemToCancel.setQuantity(itemToCancel.getQuantity() - quantityToCancel);
+        }
+
+        // Recalcular o total do pedido
+        BigDecimal newTotalAmount = calculateTotalAmount(order.getItems());
+        order.setTotalAmount(newTotalAmount);
+
+        // Se não há mais itens, cancelar o pedido inteiro
+        if (order.getItems().isEmpty()) {
+            order.setStatus(PurchaseOrderStatus.CANCELED);
+            transactionService.removeTransactionLinkedToPurchaseOrder(order);
+        } else {
+            // Criar transação de reembolso
+            transactionService.createRefundTransactionForCanceledItem(order, itemAmount, itemDescription, principal);
+        }
+
+        order = purchaseOrderRepository.save(order);
+        return modelMapper.map(order, PurchaseOrderDTO.class);
+    }
 }

@@ -247,6 +247,38 @@ public class TransactionService {
     }
 
     @Transactional
+    public void createRefundTransactionForCanceledItem(PurchaseOrder purchaseOrder, BigDecimal refundAmount, 
+            String itemDescription, Principal principal) {
+        Account account = accountService.findAccountByPaymentMethodAndUser(purchaseOrder.getPaymentMethod(), principal)
+                .orElseThrow(() -> new AccountNotFoundException(purchaseOrder.getPaymentMethod()));
+
+        // Determine wallet destination based on payment method
+        AccountType walletDest = (purchaseOrder.getPaymentMethod() == PaymentMethod.CASH)
+                ? AccountType.CASH
+                : AccountType.BANK;
+
+        Transaction refundTransaction = Transaction.builder()
+                .date(LocalDateTime.now())
+                .type(TransactionType.INCOME)
+                .detail(TransactionDetail.REFUND)
+                .description("Reembolso cancelamento: " + itemDescription + " - Pedido #" + purchaseOrder.getOrderNumber())
+                .amount(refundAmount) // Positive amount (refund)
+                .paymentMethod(purchaseOrder.getPaymentMethod())
+                .reference("REFUND_" + PURCHASE_ORDER_REFERENCE_PREFIX + purchaseOrder.getId() + "_" + System.currentTimeMillis())
+                .account(account)
+                // DOUBLE-ENTRY LEDGER FLAGS
+                .affectsProfit(false)  // Refund doesn't affect profit (it's returning an expense)
+                .affectsCash(true)     // Refund increases cash/bank balance
+                .walletDestination(walletDest)
+                .build();
+
+        transactionRepository.save(refundTransaction);
+
+        // Invalidate financial caches after creating refund transaction
+        cacheInvalidationService.invalidateFinancialCaches();
+    }
+
+    @Transactional
     public void removeTransactionLinkedToSale(Sale sale) {
         String reference = SALE_REFERENCE_PREFIX + sale.getId();
         List<Transaction> transactions = transactionRepository.findAllByReference(reference);

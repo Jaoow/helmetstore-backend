@@ -1,5 +1,6 @@
 package com.jaoow.helmetstore.controller;
 
+import com.jaoow.helmetstore.dto.order.CancelOrderItemDTO;
 import com.jaoow.helmetstore.dto.order.PurchaseOrderCreateDTO;
 import com.jaoow.helmetstore.dto.order.PurchaseOrderDTO;
 import com.jaoow.helmetstore.dto.order.PurchaseOrderHistoryResponse;
@@ -42,5 +43,18 @@ public class PurchaseOrderController {
     public PurchaseOrderDTO update(@PathVariable Long id,
             @RequestBody @Valid PurchaseOrderUpdateDTO purchaseOrderUpdateDTO, Principal principal) {
         return purchaseOrderService.update(id, purchaseOrderUpdateDTO, principal);
+    }
+
+    @GetMapping("/check-availability/{orderNumber}")
+    public boolean checkOrderNumberAvailability(@PathVariable String orderNumber, Principal principal) {
+        return purchaseOrderService.isOrderNumberAvailable(orderNumber, principal);
+    }
+
+    @PostMapping("/{orderId}/items/{itemId}/cancel")
+    public PurchaseOrderDTO cancelOrderItem(@PathVariable Long orderId,
+            @PathVariable Long itemId,
+            @RequestBody @Valid CancelOrderItemDTO cancelDTO, 
+            Principal principal) {
+        return purchaseOrderService.cancelOrderItem(orderId, itemId, cancelDTO, principal);
     }
 }
