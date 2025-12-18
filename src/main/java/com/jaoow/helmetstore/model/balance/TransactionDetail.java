@@ -18,6 +18,9 @@ public enum TransactionDetail {
     /** Receitas financeiras (juros, bônus) — lucro e caixa */
     EXTRA_INCOME(true, true),
 
+    /** Reembolso de compras canceladas — NÃO afeta lucro (apenas devolve despesa), mas aumenta caixa */
+    REFUND(false, true),
+
 
     // === EXPENSES (SAÍDAS) ===
 
