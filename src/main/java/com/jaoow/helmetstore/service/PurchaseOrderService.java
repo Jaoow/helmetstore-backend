@@ -235,4 +235,10 @@ public class PurchaseOrderService {
             inventoryItemRepository.save(inventoryItem);
         }
     }
+
+    @Transactional(readOnly = true)
+    public boolean isOrderNumberAvailable(String orderNumber, Principal principal) {
+        Inventory inventory = inventoryHelper.getInventoryFromPrincipal(principal);
+        return !purchaseOrderRepository.existsByInventoryAndOrderNumber(inventory, orderNumber);
+    }
 }

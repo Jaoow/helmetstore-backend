@@ -43,4 +43,9 @@ public class PurchaseOrderController {
             @RequestBody @Valid PurchaseOrderUpdateDTO purchaseOrderUpdateDTO, Principal principal) {
         return purchaseOrderService.update(id, purchaseOrderUpdateDTO, principal);
     }
+
+    @GetMapping("/check-availability/{orderNumber}")
+    public boolean checkOrderNumberAvailability(@PathVariable String orderNumber, Principal principal) {
+        return purchaseOrderService.isOrderNumberAvailable(orderNumber, principal);
+    }
 }
