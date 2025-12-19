@@ -2,10 +2,14 @@ package com.jaoow.helmetstore.repository;
 
 import com.jaoow.helmetstore.model.balance.AccountType;
 import com.jaoow.helmetstore.model.balance.Transaction;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.QueryHints;
 import org.springframework.data.repository.query.Param;
 
+import jakarta.persistence.QueryHint;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -19,10 +23,19 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
 
        List<Transaction> findAllByReference(String reference);
 
-       @Query("SELECT t FROM Transaction t JOIN t.account a WHERE a.user.email = :userEmail ORDER BY t.date DESC")
+       // Versão otimizada com hints e FETCH JOIN
+       @QueryHints(@QueryHint(name = "org.hibernate.readOnly", value = "true"))
+       @Query("SELECT t FROM Transaction t JOIN FETCH t.account a WHERE a.user.email = :userEmail ORDER BY t.date DESC")
        List<Transaction> findByAccountUserEmail(@Param("userEmail") String userEmail);
 
-       @Query("SELECT t FROM Transaction t JOIN t.account a WHERE a.user.email = :userEmail " +
+       // Versão paginada para queries com grande volume
+       @QueryHints(@QueryHint(name = "org.hibernate.readOnly", value = "true"))
+       @Query(value = "SELECT t FROM Transaction t JOIN t.account a WHERE a.user.email = :userEmail ORDER BY t.date DESC",
+              countQuery = "SELECT COUNT(t) FROM Transaction t JOIN t.account a WHERE a.user.email = :userEmail")
+       Page<Transaction> findByAccountUserEmailPaginated(@Param("userEmail") String userEmail, Pageable pageable);
+
+       @QueryHints(@QueryHint(name = "org.hibernate.readOnly", value = "true"))
+       @Query("SELECT t FROM Transaction t JOIN FETCH t.account a WHERE a.user.email = :userEmail " +
                      "AND t.date >= :startDate AND t.date < :endDate ORDER BY t.date DESC")
        List<Transaction> findByAccountUserEmailAndDateRange(
                      @Param("userEmail") String userEmail,
@@ -97,8 +110,9 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
         * Get all profit-affecting transactions for detailed reporting.
         * Useful for drilling down into what contributes to Net Profit.
         */
+       @QueryHints(@QueryHint(name = "org.hibernate.readOnly", value = "true"))
        @Query("SELECT t FROM Transaction t " +
-                     "JOIN t.account a " +
+                     "JOIN FETCH t.account a " +
                      "WHERE a.user.email = :userEmail " +
                      "AND t.affectsProfit = true " +
                      "AND t.date >= :startDate AND t.date < :endDate " +
@@ -112,8 +126,9 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
         * Get all transactions for a specific wallet within a date range.
         * Useful for generating Cash/Bank statements.
         */
+       @QueryHints(@QueryHint(name = "org.hibernate.readOnly", value = "true"))
        @Query("SELECT t FROM Transaction t " +
-                     "JOIN t.account a " +
+                     "JOIN FETCH t.account a " +
                      "WHERE a.user.email = :userEmail " +
                      "AND t.walletDestination = :walletType " +
                      "AND t.date >= :startDate AND t.date < :endDate " +

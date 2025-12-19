@@ -15,11 +15,10 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
     Optional<Account> findByUserEmailAndType(String userEmail, AccountType type);
 
     @Query("SELECT a FROM Account a WHERE a.user.email = :userEmail")
-    @EntityGraph(attributePaths = "transactions")
     List<Account> findAllByUserEmail(@Param("userEmail") String userEmail);
 
-    @Query("SELECT a FROM Account a WHERE a.user.email = :userEmail AND a.type = :type")
-    @EntityGraph(attributePaths = "transactions")
+    // Versão otimizada quando precisar carregar transações (use apenas quando necessário)
+    @Query("SELECT a FROM Account a LEFT JOIN FETCH a.transactions WHERE a.user.email = :userEmail AND a.type = :type")
     Optional<Account> findByUserEmailAndTypeWithTransactions(@Param("userEmail") String userEmail,
             @Param("type") AccountType type);
 }

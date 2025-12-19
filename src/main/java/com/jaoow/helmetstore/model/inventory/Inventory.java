@@ -22,16 +22,16 @@ public class Inventory {
     @Column(nullable = false)
     private Long id;
 
-    @OneToMany(mappedBy = "inventory")
+    @OneToMany(mappedBy = "inventory", fetch = FetchType.LAZY)
     private Set<InventoryItem> items;
 
-    @OneToMany(mappedBy = "inventory")
+    @OneToMany(mappedBy = "inventory", fetch = FetchType.LAZY)
     private Set<Sale> sales;
 
-    @OneToMany(mappedBy = "inventory")
+    @OneToMany(mappedBy = "inventory", fetch = FetchType.LAZY)
     private Set<PurchaseOrder> orders;
 
-    @OneToOne(mappedBy = "inventory", optional = false)
+    @OneToOne(mappedBy = "inventory", optional = false, fetch = FetchType.LAZY)
     private User user;
 
 }

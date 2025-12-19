@@ -10,7 +10,10 @@ import org.hibernate.annotations.UpdateTimestamp;
 import java.util.Set;
 
 @Entity
-@Table(name = "app_user")
+@Table(name = "app_user", indexes = {
+    @Index(name = "idx_user_email", columnList = "email", unique = true),
+    @Index(name = "idx_user_inventory", columnList = "inventory_id")
+})
 @Getter
 @Setter
 @NoArgsConstructor

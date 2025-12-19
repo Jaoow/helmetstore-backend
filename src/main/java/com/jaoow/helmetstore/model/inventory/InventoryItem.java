@@ -13,6 +13,10 @@ import java.time.LocalDate;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@Table(indexes = {
+    @Index(name = "idx_inventory_item_variant", columnList = "productVariant_id"),
+    @Index(name = "idx_inventory_item_inventory_variant", columnList = "inventory_id, productVariant_id", unique = true)
+})
 public class InventoryItem {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

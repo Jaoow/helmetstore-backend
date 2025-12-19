@@ -4,6 +4,7 @@ import com.jaoow.helmetstore.model.balance.PaymentMethod;
 import com.jaoow.helmetstore.model.inventory.Inventory;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.BatchSize;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -15,6 +16,11 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@Table(indexes = {
+    @Index(name = "idx_purchase_order_date", columnList = "date"),
+    @Index(name = "idx_purchase_order_inventory_date", columnList = "inventory_id, date"),
+    @Index(name = "idx_purchase_order_number", columnList = "orderNumber")
+})
 public class PurchaseOrder {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -30,7 +36,8 @@ public class PurchaseOrder {
     @Column(columnDefinition = "DATE")
     private LocalDate date;
 
-    @OneToMany(cascade = CascadeType.ALL, mappedBy = "purchaseOrder")
+    @OneToMany(cascade = CascadeType.ALL, mappedBy = "purchaseOrder", fetch = FetchType.LAZY)
+    @BatchSize(size = 16)
     private List<PurchaseOrderItem> items;
 
     @Column(precision = 10, scale = 2)
