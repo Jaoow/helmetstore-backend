@@ -7,6 +7,9 @@ import com.jaoow.helmetstore.dto.sale.SaleResponseDTO;
 import com.jaoow.helmetstore.service.SaleService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
@@ -47,5 +50,19 @@ public class SaleController {
     @DeleteMapping("/{id}")
     public void delete(@PathVariable Long id, Principal principal) {
         saleService.delete(id, principal);
+    }
+
+    @GetMapping("/{id}/receipt")
+    public ResponseEntity<byte[]> downloadReceipt(@PathVariable Long id, Principal principal) {
+        byte[] pdfContent = saleService.generateReceipt(id, principal);
+        
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_PDF);
+        headers.setContentDispositionFormData("attachment", "recibo-venda-" + id + ".pdf");
+        headers.setContentLength(pdfContent.length);
+        
+        return ResponseEntity.ok()
+                .headers(headers)
+                .body(pdfContent);
     }
 }

@@ -18,6 +18,7 @@ import com.jaoow.helmetstore.model.sale.SalePayment;
 import com.jaoow.helmetstore.repository.InventoryItemRepository;
 import com.jaoow.helmetstore.repository.ProductVariantRepository;
 import com.jaoow.helmetstore.repository.SaleRepository;
+import com.jaoow.helmetstore.service.pdf.SaleReceiptPDFService;
 import lombok.RequiredArgsConstructor;
 import org.modelmapper.ModelMapper;
 import org.springframework.cache.annotation.CacheEvict;
@@ -27,6 +28,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.security.Principal;
 import java.util.ArrayList;
@@ -45,6 +47,7 @@ public class SaleService {
     private final ProductVariantRepository productVariantRepository;
     private final InventoryItemRepository inventoryItemRepository;
     private final TransactionService transactionService;
+    private final SaleReceiptPDFService saleReceiptPDFService;
 
     @Transactional(readOnly = true)
     @PreAuthorize("hasRole('ADMIN')")
@@ -270,6 +273,19 @@ public class SaleService {
 
         transactionService.removeTransactionLinkedToSale(sale);
         saleRepository.delete(sale);
+    }
+
+    @Transactional(readOnly = true)
+    public byte[] generateReceipt(Long id, Principal principal) {
+        Inventory inventory = inventoryHelper.getInventoryFromPrincipal(principal);
+        Sale sale = saleRepository.findByIdAndInventory(id, inventory)
+                .orElseThrow(() -> new ResourceNotFoundException("Sale not found with ID: " + id));
+        
+        try {
+            return saleReceiptPDFService.generateSaleReceipt(sale);
+        } catch (IOException e) {
+            throw new RuntimeException("Erro ao gerar recibo: " + e.getMessage(), e);
+        }
     }
 
     @Cacheable(value = CacheNames.SALES_HISTORY, key = "#principal.name")
