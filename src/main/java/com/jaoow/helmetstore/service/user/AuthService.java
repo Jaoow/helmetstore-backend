@@ -51,10 +51,17 @@ public class AuthService {
                 .orElseThrow(() -> new JwtException("Invalid refresh token"));
 
         User user = token.getUser();
+        
+        // Revoga o refresh token antigo (security best practice)
+        refreshTokenRepository.delete(token);
+        
         UserDetails userDetails = userService.loadUserByUsername(user.getEmail());
         String newAccessToken = jwtService.generateToken(userDetails);
+        
+        // Gera um NOVO refresh token (token rotation)
+        String newRefreshToken = tokenService.createRefreshToken(userDetails).getToken();
 
-        return new RefreshTokenResponse(newAccessToken, refreshToken);
+        return new RefreshTokenResponse(newAccessToken, newRefreshToken);
     }
 
 }

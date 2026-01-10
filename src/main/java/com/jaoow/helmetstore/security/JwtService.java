@@ -56,6 +56,14 @@ public class JwtService {
         claims.put("roles", authorities);
         return generateToken(claims, userDetails);
     }
+    
+    public boolean isTokenExpired(String token) {
+        try {
+            return extractClaim(token, Claims::getExpiration).before(new Date());
+        } catch (Exception e) {
+            return true;
+        }
+    }
 
     public String generateToken(Map<String, Object> extraClaims, UserDetails userDetails) {
         return buildToken(extraClaims, userDetails, jwtExpiration);
