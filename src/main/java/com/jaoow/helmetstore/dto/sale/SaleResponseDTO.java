@@ -16,6 +16,7 @@ public class SaleResponseDTO {
     private Long id;
     private LocalDateTime date;
     private List<SaleItemDTO> items;
+    private List<SalePaymentDTO> payments;
     private BigDecimal totalAmount;
     private BigDecimal totalProfit;
 

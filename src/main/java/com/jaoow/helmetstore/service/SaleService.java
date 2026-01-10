@@ -372,7 +372,14 @@ public class SaleService {
                     .map(this::convertToSaleItemDTO)
                     .collect(Collectors.toList());
             dto.setItems(itemDTOs);
+        }
 
+        // Convert sale payments
+        if (sale.getPayments() != null && !sale.getPayments().isEmpty()) {
+            List<SalePaymentDTO> paymentDTOs = sale.getPayments().stream()
+                    .map(this::convertToSalePaymentDTO)
+                    .collect(Collectors.toList());
+            dto.setPayments(paymentDTOs);
         }
 
         return dto;
@@ -439,5 +446,12 @@ public class SaleService {
         dto.setPayments(paymentDTOs);
 
         return dto;
+    }
+    
+    private SalePaymentDTO convertToSalePaymentDTO(SalePayment salePayment) {
+        return SalePaymentDTO.builder()
+                .paymentMethod(salePayment.getPaymentMethod())
+                .amount(salePayment.getAmount())
+                .build();
     }
 }
