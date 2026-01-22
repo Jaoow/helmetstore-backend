@@ -32,8 +32,11 @@ public class SaleController {
     }
 
     @GetMapping("/history")
-    public SaleHistoryResponse getHistory(Principal principal) {
-        return saleService.getHistory(principal);
+    public SaleHistoryResponse getHistory(
+            @RequestParam(required = false) Integer year,
+            @RequestParam(required = false) Integer month,
+            Principal principal) {
+        return saleService.getHistory(year, month, principal);
     }
 
     @PostMapping

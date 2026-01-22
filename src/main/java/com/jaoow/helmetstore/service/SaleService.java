@@ -288,11 +288,21 @@ public class SaleService {
         }
     }
 
-    @Cacheable(value = CacheNames.SALES_HISTORY, key = "#principal.name")
+    @Cacheable(value = CacheNames.SALES_HISTORY, key = "#principal.name + '-' + #year + '-' + #month")
     @Transactional(readOnly = true)
-    public SaleHistoryResponse getHistory(Principal principal) {
+    public SaleHistoryResponse getHistory(Integer year, Integer month, Principal principal) {
         Inventory inventory = inventoryHelper.getInventoryFromPrincipal(principal);
-        List<Sale> sales = saleRepository.findAllByInventoryWithProductVariantsAndProducts(inventory);
+        
+        List<Sale> sales;
+        if (year != null && month != null) {
+            // Optimized: Filter sales by year and month directly in the database
+            java.time.LocalDateTime startDate = java.time.LocalDateTime.of(year, month, 1, 0, 0, 0);
+            java.time.LocalDateTime endDate = startDate.plusMonths(1);
+            sales = saleRepository.findByInventoryAndDateRange(inventory, startDate, endDate);
+        } else {
+            // Return all sales if no filter specified (backward compatibility)
+            sales = saleRepository.findAllByInventoryWithProductVariantsAndProducts(inventory);
+        }
 
         List<SaleResponseDTO> saleDTOs = sales.stream()
                 .map(this::convertToSaleResponseDTO)
