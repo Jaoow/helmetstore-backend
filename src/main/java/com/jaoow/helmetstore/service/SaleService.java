@@ -62,7 +62,7 @@ public class SaleService {
             @CacheEvict(value = CacheNames.MOST_SOLD_PRODUCTS, key = "#principal.name"),
             @CacheEvict(value = CacheNames.PRODUCT_STOCK, key = "#principal.name"),
             @CacheEvict(value = CacheNames.REVENUE_AND_PROFIT, key = "#principal.name"),
-            @CacheEvict(value = CacheNames.SALES_HISTORY, key = "#principal.name")
+            @CacheEvict(value = CacheNames.SALES_HISTORY, allEntries = true)
     })
     @Transactional
     public SaleResponseDTO save(SaleCreateDTO dto, Principal principal) {
@@ -144,7 +144,7 @@ public class SaleService {
             @CacheEvict(value = CacheNames.MOST_SOLD_PRODUCTS, key = "#principal.name"),
             @CacheEvict(value = CacheNames.PRODUCT_STOCK, key = "#principal.name"),
             @CacheEvict(value = CacheNames.REVENUE_AND_PROFIT, key = "#principal.name"),
-            @CacheEvict(value = CacheNames.SALES_HISTORY, key = "#principal.name")
+            @CacheEvict(value = CacheNames.SALES_HISTORY, allEntries = true)
     })
     @Transactional
     public SaleResponseDTO update(Long saleId, SaleCreateDTO dto, Principal principal) {
@@ -247,7 +247,7 @@ public class SaleService {
             @CacheEvict(value = CacheNames.MOST_SOLD_PRODUCTS, key = "#principal.name"),
             @CacheEvict(value = CacheNames.PRODUCT_STOCK, key = "#principal.name"),
             @CacheEvict(value = CacheNames.REVENUE_AND_PROFIT, key = "#principal.name"),
-            @CacheEvict(value = CacheNames.SALES_HISTORY, key = "#principal.name")
+            @CacheEvict(value = CacheNames.SALES_HISTORY, allEntries = true)
     })
     @Transactional
     public void delete(Long id, Principal principal) {
