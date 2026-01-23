@@ -24,6 +24,9 @@ public class ProductCreateDTO {
     @Pattern(regexp = "https?://.*", message = "Invalid URL")
     private String imgUrl;
 
+    @DecimalMin("0.0")
+    private BigDecimal salePrice;
+
     private String categoryName;
 
     private List<ProductVariantDTO> variants;
@@ -37,8 +40,5 @@ public class ProductCreateDTO {
 
         @NotBlank(message = "Size is mandatory")
         private String size;
-
-        @DecimalMin("0")
-        private BigDecimal quantity = BigDecimal.ZERO;
     }
 }

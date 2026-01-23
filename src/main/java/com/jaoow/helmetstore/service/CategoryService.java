@@ -2,6 +2,7 @@ package com.jaoow.helmetstore.service;
 
 import com.jaoow.helmetstore.cache.CacheNames;
 import com.jaoow.helmetstore.model.Category;
+import com.jaoow.helmetstore.model.inventory.Inventory;
 import com.jaoow.helmetstore.repository.CategoryRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
@@ -21,23 +22,24 @@ public class CategoryService {
             @CacheEvict(value = CacheNames.PRODUCT_INDICATORS, allEntries = true),
             @CacheEvict(value = CacheNames.PRODUCT_STOCK, allEntries = true)
     })
-    public Category findOrCreateCategory(String categoryName) {
+    public Category findOrCreateCategory(String categoryName, Inventory inventory) {
         if (categoryName == null || categoryName.trim().isEmpty()) {
             return null;
         }
 
-        return categoryRepository.findByName(categoryName.trim())
+        return categoryRepository.findByNameAndInventory(categoryName.trim(), inventory)
                 .orElseGet(() -> {
                     Category newCategory = Category.builder()
                             .name(categoryName.trim())
+                            .inventory(inventory)
                             .build();
                     return categoryRepository.save(newCategory);
                 });
     }
 
     @Transactional(readOnly = true)
-    public Category findByName(String name) {
-        return categoryRepository.findByName(name).orElse(null);
+    public Category findByNameAndInventory(String name, Inventory inventory) {
+        return categoryRepository.findByNameAndInventory(name, inventory).orElse(null);
     }
 
     @Transactional

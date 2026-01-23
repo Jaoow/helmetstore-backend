@@ -2,10 +2,7 @@ package com.jaoow.helmetstore.controller;
 
 import com.jaoow.helmetstore.dto.item.VariantPriceUpdateDTO;
 import com.jaoow.helmetstore.dto.item.VariantStockUpdateDTO;
-import com.jaoow.helmetstore.dto.product.ProductDataResponseDTO;
-import com.jaoow.helmetstore.dto.product.ProductDataUpsertDTO;
 import com.jaoow.helmetstore.service.InventoryItemService;
-import com.jaoow.helmetstore.service.ProductDataService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -21,7 +18,6 @@ import java.util.List;
 public class InventoryItemController {
 
     private final InventoryItemService inventoryItemService;
-    private final ProductDataService productDataService;
 
     @PostMapping("/adjust-stock")
     public void updateInventoryItem(@RequestBody @Valid List<VariantStockUpdateDTO> variantStockUpdateDTOs,
@@ -29,21 +25,15 @@ public class InventoryItemController {
         inventoryItemService.updateItemStock(variantStockUpdateDTOs, principal);
     }
 
-    @PostMapping("/adjust-price")
-    public ProductDataResponseDTO updateProductPrice(@RequestBody @Valid ProductDataUpsertDTO upsertDTO,
+    @PostMapping("/update-variant-average-cost")
+    public void updateVariantAverageCost(@RequestBody @Valid List<VariantPriceUpdateDTO> variantPriceUpdateDTOs,
             Principal principal) {
-        return productDataService.upsert(upsertDTO, principal);
+        inventoryItemService.updateVariantAverageCost(variantPriceUpdateDTOs, principal);
     }
 
-    @PostMapping("/adjust-purchase-price")
-    public void updateInventoryItemPrice(@RequestBody @Valid List<VariantPriceUpdateDTO> variantPriceUpdateDTOs,
-            Principal principal) {
-        inventoryItemService.updateItemPrice(variantPriceUpdateDTOs, principal);
-    }
-
-    @PostMapping("/adjust-product-purchase-price")
-    public void updateProductPrice(@RequestParam Long productId, @RequestParam BigDecimal price, Principal principal) {
-        inventoryItemService.updateProductPrice(productId, price, principal);
+    @PostMapping("/update-product-average-cost")
+    public void updateProductAverageCost(@RequestParam Long productId, @RequestParam BigDecimal averageCost, Principal principal) {
+        inventoryItemService.updateProductAverageCost(productId, averageCost, principal);
     }
 
     @DeleteMapping("/product/{productId}")

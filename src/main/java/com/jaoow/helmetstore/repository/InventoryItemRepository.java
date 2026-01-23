@@ -52,7 +52,7 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, Lo
                 COALESCE(c.name, '') AS categoryName,
                 ii.lastPurchaseDate AS lastPurchaseDate,
                 COALESCE(ii.averageCost, 0) AS averageCost,
-                COALESCE(ipd.salePrice, 0) AS salePrice,
+                COALESCE(p.salePrice, 0) AS salePrice,
                 pv.id AS variantId,
                 pv.sku AS sku,
                 pv.size AS size,
@@ -78,11 +78,10 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, Lo
             LEFT JOIN poi.purchaseOrder po ON po.inventory = :inventory
             LEFT JOIN SalesSummary ss ON ss.variantId = pv.id
             LEFT JOIN StockSummary s ON s.variantId = pv.id
-            LEFT JOIN ProductData ipd ON ipd.product = p AND ipd.inventory = :inventory
             WHERE ii.inventory = :inventory
             GROUP BY
                 p.id, pv.id, ii.quantity, ii.lastPurchaseDate, ii.averageCost,
-                ss.lastSaleDate, ss.totalSold, ss.totalRevenue, ss.totalProfit, s.incomingStock, ipd.salePrice, c.name
+                ss.lastSaleDate, ss.totalSold, ss.totalRevenue, ss.totalProfit, s.incomingStock, p.salePrice, c.name
             ORDER BY p.model ASC, p.color ASC, pv.size
             """)
     List<ProductVariantSalesAndStockSummary> findAllWithSalesAndPurchaseDataByInventory(
@@ -106,7 +105,7 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, Lo
                     p.imgUrl AS imgUrl,
                     COALESCE(c.name, '') AS categoryName,
                     COALESCE(ii.averageCost, 0) AS averageCost,
-                    COALESCE(ipd.salePrice, 0) AS salePrice,
+                    COALESCE(p.salePrice, 0) AS salePrice,
                     ii.lastPurchaseDate AS lastPurchaseDate,
                     pv.id AS variantId,
                     pv.sku AS sku,
@@ -119,7 +118,6 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, Lo
                 JOIN Product p ON p.id = pv.product.id
                 LEFT JOIN p.category c
                 LEFT JOIN IncomingStock is ON is.variantId = pv.id
-                LEFT JOIN ProductData ipd ON ipd.product = p AND ipd.inventory = :inventory
                 WHERE ii.inventory = :inventory
                 ORDER BY p.model ASC, p.color ASC, pv.size
             """)
@@ -148,7 +146,7 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, Lo
                     p.color AS color,
                     p.imgUrl AS imgUrl,
                     COALESCE(c.name, '') AS categoryName,
-                    COALESCE(ipd.salePrice, 0) AS salePrice,
+                    COALESCE(p.salePrice, 0) AS salePrice,
                     pv.id AS variantId,
                     pv.sku AS sku,
                     pv.size AS size,
@@ -162,7 +160,6 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, Lo
                  JOIN Product p ON pv.product.id = p.id
                  LEFT JOIN p.category c
                  LEFT JOIN SalesSummary ss ON ss.variantId = pv.id
-                 LEFT JOIN ProductData ipd ON ipd.product = p AND ipd.inventory = :inventory
                  WHERE ii.inventory = :inventory
                  ORDER BY ss.totalSold DESC, p.model ASC, p.color ASC, pv.size
             """)
@@ -235,7 +232,7 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, Lo
                 p.color AS color,
                 p.imgUrl AS imgUrl,
                 COALESCE(c.name, '') AS categoryName,
-                COALESCE(ipd.salePrice, 0) AS salePrice,
+                COALESCE(p.salePrice, 0) AS salePrice,
                 pa.lastPurchaseDate AS lastPurchaseDate,
                 pa.avgPurchasePrice AS averageCost,
                 pa.totalCurrentStock AS totalCurrentStock,
@@ -254,7 +251,6 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, Lo
             FROM Product p
             JOIN ProductAggregates pa ON pa.productId = p.id
             LEFT JOIN p.category c
-            LEFT JOIN ProductData ipd ON ipd.product = p AND ipd.inventory = :inventory
             WHERE EXISTS (
                 SELECT 1 FROM InventoryItem ii
                 JOIN ProductVariant pv ON pv.id = ii.productVariant.id

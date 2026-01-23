@@ -51,7 +51,7 @@ public class InventoryItemService {
             @CacheEvict(value = CacheNames.PRODUCT_INDICATORS, key = "#principal.name"),
             @CacheEvict(value = CacheNames.PRODUCT_STOCK, key = "#principal.name"),
     })
-    public void updateItemPrice(List<VariantPriceUpdateDTO> dto, Principal principal) {
+    public void updateVariantAverageCost(List<VariantPriceUpdateDTO> dto, Principal principal) {
         Inventory inventory = inventoryHelper.getInventoryFromPrincipal(principal);
         for (VariantPriceUpdateDTO priceUpdateDTO : dto) {
             inventoryItemRepository.updatePrice(priceUpdateDTO.getVariantId(), priceUpdateDTO.getAverageCost(), inventory);
@@ -64,8 +64,8 @@ public class InventoryItemService {
             @CacheEvict(value = CacheNames.PRODUCT_INDICATORS_GROUPED, key = "#principal.name"),
             @CacheEvict(value = CacheNames.PRODUCT_STOCK, key = "#principal.name"),
     })
-    public void updateProductPrice(Long productId, BigDecimal price, Principal principal) {
+    public void updateProductAverageCost(Long productId, BigDecimal averageCost, Principal principal) {
         Inventory inventory = inventoryHelper.getInventoryFromPrincipal(principal);
-        inventoryItemRepository.updatePriceByProduct(productId, price, inventory);
+        inventoryItemRepository.updatePriceByProduct(productId, averageCost, inventory);
     }
 }

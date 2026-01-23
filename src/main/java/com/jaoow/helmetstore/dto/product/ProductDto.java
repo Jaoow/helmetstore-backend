@@ -6,7 +6,6 @@ import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -18,9 +17,9 @@ public class ProductDto implements Serializable {
     private String model;
     private String color;
     private String imgUrl;
-    private BigDecimal averageCost;
-    private LocalDate lastPurchaseDate;
+    private BigDecimal salePrice;
     private String categoryName;
+    private Long inventoryId;
     private List<ProductVariantDto> variants = new ArrayList<>();
 
     @Data
@@ -30,6 +29,5 @@ public class ProductDto implements Serializable {
         private Long id;
         private String sku;
         private String size;
-        private int quantity = 0;
     }
 }
