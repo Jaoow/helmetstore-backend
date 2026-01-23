@@ -61,6 +61,16 @@ INNER JOIN inventory_item ii ON ii.product_variant_id = pv.id
 GROUP BY p.id
 HAVING COUNT(DISTINCT ii.inventory_id) > 1;
 
+-- Ensure product_variant sequence exists
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'product_variant_seq') THEN
+        CREATE SEQUENCE product_variant_seq;
+        -- Set sequence to max existing id + 1
+        PERFORM setval('product_variant_seq', (SELECT COALESCE(MAX(id), 0) + 1 FROM product_variant));
+    END IF;
+END $$;
+
 -- Step 6: Duplicate products for each inventory they appear in
 -- We'll keep the original for the first inventory and create copies for others
 DO $$
@@ -108,8 +118,9 @@ BEGIN
                 FOR variant_record IN
                     SELECT * FROM product_variant WHERE product_id = product_record.id
                 LOOP
-                    INSERT INTO product_variant (sku, size, product_id)
-                    VALUES (variant_record.sku, variant_record.size, new_product_id)
+                    -- Insert new variant using nextval for ID generation
+                    INSERT INTO product_variant (id, sku, size, product_id)
+                    VALUES (nextval('product_variant_seq'), variant_record.sku, variant_record.size, new_product_id)
                     RETURNING id INTO new_variant_id;
                     
                     -- Update inventory_item references for this inventory
@@ -175,7 +186,27 @@ BEGIN
     DELETE FROM product WHERE inventory_id IS NULL;
 END $$;
 
--- Step 10: Update categories to be inventory-scoped
+-- Step 10: Remove old unique constraint on category name (if exists)
+-- This constraint prevents duplicating categories with same name for different inventories
+DO $$
+DECLARE
+    constraint_name TEXT;
+BEGIN
+    -- Find the unique constraint on categories.name
+    SELECT conname INTO constraint_name
+    FROM pg_constraint
+    WHERE conrelid = 'categories'::regclass
+    AND contype = 'u'
+    AND array_length(conkey, 1) = 1
+    AND conkey[1] = (SELECT attnum FROM pg_attribute WHERE attrelid = 'categories'::regclass AND attname = 'name');
+    
+    -- Drop it if found
+    IF constraint_name IS NOT NULL THEN
+        EXECUTE 'ALTER TABLE categories DROP CONSTRAINT ' || constraint_name;
+    END IF;
+END $$;
+
+-- Step 11: Update categories to be inventory-scoped
 -- First, duplicate categories that are used across multiple inventories
 DO $$
 DECLARE
@@ -227,14 +258,14 @@ BEGIN
     WHERE inventory_id IS NULL;
 END $$;
 
--- Step 11: Drop product_data table (no longer needed)
+-- Step 12: Drop product_data table (no longer needed)
 DROP TABLE IF EXISTS product_data;
 
--- Step 12: Make inventory_id NOT NULL now that all products have been assigned
+-- Step 13: Make inventory_id NOT NULL now that all products have been assigned
 ALTER TABLE product ALTER COLUMN inventory_id SET NOT NULL;
 ALTER TABLE categories ALTER COLUMN inventory_id SET NOT NULL;
 
--- Step 13: Add foreign key constraints
+-- Step 14: Add foreign key constraints
 ALTER TABLE product 
     ADD CONSTRAINT fk_product_inventory 
     FOREIGN KEY (inventory_id) 
@@ -247,16 +278,16 @@ ALTER TABLE categories
     REFERENCES inventory(id)
     ON DELETE CASCADE;
 
--- Step 14: Add indexes for performance
-CREATE INDEX idx_product_inventory ON product(inventory_id);
-CREATE INDEX idx_product_inventory_category ON product(inventory_id, category_id);
-CREATE INDEX idx_categories_inventory ON categories(inventory_id);
+-- Step 15: Add indexes for performance (skip if already exist)
+CREATE INDEX IF NOT EXISTS idx_product_inventory ON product(inventory_id);
+CREATE INDEX IF NOT EXISTS idx_product_inventory_category ON product(inventory_id, category_id);
+CREATE INDEX IF NOT EXISTS idx_categories_inventory ON categories(inventory_id);
 
--- Step 15: Update category unique constraint to be scoped by inventory
-ALTER TABLE categories DROP CONSTRAINT IF EXISTS categories_name_key;
-CREATE UNIQUE INDEX idx_categories_name_inventory ON categories(name, inventory_id);
+-- Step 16: Add new unique constraint on categories (name + inventory_id)
+-- This ensures category names are unique within each inventory but can be reused across inventories
+CREATE UNIQUE INDEX IF NOT EXISTS idx_categories_name_inventory ON categories(name, inventory_id);
 
--- Step 16: Clean up temporary tables
+-- Step 17: Clean up temporary tables
 DROP TABLE IF EXISTS temp_product_inventory_mapping;
 DROP TABLE IF EXISTS temp_multi_inventory_products;
 
