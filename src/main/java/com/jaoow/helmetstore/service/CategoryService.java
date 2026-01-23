@@ -51,4 +51,25 @@ public class CategoryService {
     public Category save(Category category) {
         return categoryRepository.save(category);
     }
+
+    @Transactional
+    @Caching(evict = {
+            @CacheEvict(value = CacheNames.PRODUCT, allEntries = true),
+            @CacheEvict(value = CacheNames.PRODUCT_INDICATORS, allEntries = true),
+            @CacheEvict(value = CacheNames.PRODUCT_STOCK, allEntries = true)
+    })
+    public void delete(Long categoryId, Inventory inventory) {
+        Category category = categoryRepository.findByIdAndInventory(categoryId, inventory)
+                .orElseThrow(() -> new IllegalArgumentException("Categoria não encontrada"));
+
+        // Verifica se há produtos na categoria
+        if (category.getProducts() != null && !category.getProducts().isEmpty()) {
+            throw new IllegalStateException(
+                "Não é possível deletar a categoria porque há " + category.getProducts().size() + 
+                " produto(s) vinculado(s). Remova ou altere a categoria dos produtos primeiro."
+            );
+        }
+
+        categoryRepository.deleteById(categoryId);
+    }
 }

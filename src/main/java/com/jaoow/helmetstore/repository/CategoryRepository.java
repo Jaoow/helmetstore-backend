@@ -12,6 +12,8 @@ import java.util.Optional;
 public interface CategoryRepository extends JpaRepository<Category, Long> {
     Optional<Category> findByNameAndInventory(String name, Inventory inventory);
 
+    Optional<Category> findByIdAndInventory(Long id, Inventory inventory);
+
     boolean existsByNameAndInventory(String name, Inventory inventory);
 
     List<Category> findAllByInventory(Inventory inventory);

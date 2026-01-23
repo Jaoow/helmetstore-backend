@@ -31,6 +31,14 @@ public class InventoryItemController {
         inventoryItemService.updateVariantAverageCost(variantPriceUpdateDTOs, principal);
     }
 
+    // Backward compatibility - deprecated, use /update-variant-average-cost
+    @PostMapping("/adjust-purchase-price")
+    @Deprecated
+    public void adjustPurchasePrice(@RequestBody @Valid List<VariantPriceUpdateDTO> variantPriceUpdateDTOs,
+            Principal principal) {
+        inventoryItemService.updateVariantAverageCost(variantPriceUpdateDTOs, principal);
+    }
+
     @PostMapping("/update-product-average-cost")
     public void updateProductAverageCost(@RequestParam Long productId, @RequestParam BigDecimal averageCost, Principal principal) {
         inventoryItemService.updateProductAverageCost(productId, averageCost, principal);

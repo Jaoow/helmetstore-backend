@@ -29,7 +29,7 @@ public class Category {
     @JoinColumn(name = "inventory_id", nullable = false)
     private Inventory inventory;
 
-    @OneToMany(mappedBy = "category", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "category")
     @Builder.Default
     private List<Product> products = new ArrayList<>();
 }
