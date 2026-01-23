@@ -4,6 +4,7 @@ import com.jaoow.helmetstore.model.Sale;
 import com.jaoow.helmetstore.model.inventory.Inventory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.jpa.repository.QueryHints;
@@ -20,6 +21,7 @@ import java.util.Optional;
 @Repository
 public interface SaleRepository extends JpaRepository<Sale, Long> {
 
+        @EntityGraph(attributePaths = {"items", "items.productVariant", "items.productVariant.product", "payments"})
         Optional<Sale> findByIdAndInventory(Long id, Inventory inventory);
 
         @Query("""
@@ -41,8 +43,9 @@ public interface SaleRepository extends JpaRepository<Sale, Long> {
                         """)
         List<Sale> findAllByInventoryWithProductVariantsAndProducts(@Param("inventory") Inventory inventory);
 
-        // Versão paginada para consultas com muitos registros
+        // Versão paginada para consultas com muitos registros - usando EntityGraph
         @QueryHints(@QueryHint(name = "org.hibernate.readOnly", value = "true"))
+        @EntityGraph(attributePaths = {"items", "items.productVariant", "items.productVariant.product", "payments"})
         @Query(value = """
                         SELECT DISTINCT s FROM Sale s
                         WHERE s.inventory = :inventory

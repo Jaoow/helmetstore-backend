@@ -7,6 +7,10 @@ import com.jaoow.helmetstore.dto.sale.SaleResponseDTO;
 import com.jaoow.helmetstore.service.SaleService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -22,8 +26,15 @@ public class SaleController {
     private final SaleService saleService;
 
     @GetMapping
-    public List<SaleResponseDTO> getAll() {
-        return saleService.findAll();
+    public Page<SaleResponseDTO> getAll(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size,
+            @RequestParam(defaultValue = "date") String sortBy,
+            @RequestParam(defaultValue = "DESC") String sortDirection,
+            Principal principal) {
+        Sort.Direction direction = Sort.Direction.fromString(sortDirection);
+        Pageable pageable = PageRequest.of(page, Math.min(size, 100), Sort.by(direction, sortBy));
+        return saleService.findAll(pageable, principal);
     }
 
     @GetMapping("/{id}")

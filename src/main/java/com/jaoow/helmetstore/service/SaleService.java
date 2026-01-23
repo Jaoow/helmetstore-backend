@@ -24,6 +24,8 @@ import org.modelmapper.ModelMapper;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.Caching;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,8 +34,10 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.security.Principal;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -51,10 +55,10 @@ public class SaleService {
 
     @Transactional(readOnly = true)
     @PreAuthorize("hasRole('ADMIN')")
-    public List<SaleResponseDTO> findAll() {
-        return saleRepository.findAll().stream()
-                .map(this::convertToSaleResponseDTO)
-                .collect(Collectors.toList());
+    public Page<SaleResponseDTO> findAll(Pageable pageable, Principal principal) {
+        Inventory inventory = inventoryHelper.getInventoryFromPrincipal(principal);
+        Page<Sale> salesPage = saleRepository.findAllByInventoryPaginated(inventory, pageable);
+        return salesPage.map(this::convertToSaleResponseDTO);
     }
 
     @Caching(evict = {
@@ -288,7 +292,8 @@ public class SaleService {
         }
     }
 
-    @Cacheable(value = CacheNames.SALES_HISTORY, key = "#principal.name + '-' + #year + '-' + #month")
+    @Cacheable(value = CacheNames.SALES_HISTORY, 
+            key = "#principal.name + '-' + (#year != null ? #year : 'all') + '-' + (#month != null ? #month : 'all')")
     @Transactional(readOnly = true)
     public SaleHistoryResponse getHistory(Integer year, Integer month, Principal principal) {
         Inventory inventory = inventoryHelper.getInventoryFromPrincipal(principal);
@@ -308,30 +313,25 @@ public class SaleService {
                 .map(this::convertToSaleResponseDTO)
                 .collect(Collectors.toList());
 
-        // Collect all product variants from all sale items (including multiple items
-        // per sale)
-        List<SimpleProductVariantDTO> productVariants = sales.stream()
-                .flatMap(sale -> {
-                    if (sale.getItems() != null && !sale.getItems().isEmpty()) {
-                        return sale.getItems().stream()
-                                .map(item -> item.getProductVariant());
-                    }
-                    return java.util.stream.Stream.empty();
-                })
-                .distinct()
+        // Optimized: Collect variants and products in a single stream iteration
+        Set<ProductVariant> variantSet = new HashSet<>();
+        Set<com.jaoow.helmetstore.model.Product> productSet = new HashSet<>();
+        
+        sales.forEach(sale -> {
+            if (sale.getItems() != null && !sale.getItems().isEmpty()) {
+                sale.getItems().forEach(item -> {
+                    ProductVariant variant = item.getProductVariant();
+                    variantSet.add(variant);
+                    productSet.add(variant.getProduct());
+                });
+            }
+        });
+
+        List<SimpleProductVariantDTO> productVariants = variantSet.stream()
                 .map(variant -> modelMapper.map(variant, SimpleProductVariantDTO.class))
                 .collect(Collectors.toList());
 
-        // Collect all products from all sale items
-        List<SimpleProductDTO> products = sales.stream()
-                .flatMap(sale -> {
-                    if (sale.getItems() != null && !sale.getItems().isEmpty()) {
-                        return sale.getItems().stream()
-                                .map(item -> item.getProductVariant().getProduct());
-                    }
-                    return java.util.stream.Stream.empty();
-                })
-                .distinct()
+        List<SimpleProductDTO> products = productSet.stream()
                 .map(product -> modelMapper.map(product, SimpleProductDTO.class))
                 .collect(Collectors.toList());
 

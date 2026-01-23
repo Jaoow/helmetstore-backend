@@ -33,7 +33,7 @@ public class Product {
     private Category category;
 
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    @BatchSize(size = 16)
+    @BatchSize(size = 3)
     @Builder.Default
     private List<ProductVariant> variants = new ArrayList<>();
 }

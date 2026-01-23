@@ -28,7 +28,7 @@ public class SaleItem {
     @JoinColumn(name = "sale_id")
     private Sale sale;
 
-    @ManyToOne(optional = false)
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "product_variant_id")
     private ProductVariant productVariant;
 

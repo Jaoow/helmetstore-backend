@@ -30,7 +30,7 @@ public class Sale {
     private LocalDateTime date;
 
     @OneToMany(mappedBy = "sale", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
-    @BatchSize(size = 16)
+    @BatchSize(size = 5)
     private List<SaleItem> items;
 
     @Column(nullable = false, precision = 12, scale = 2)
@@ -40,7 +40,7 @@ public class Sale {
     private BigDecimal totalProfit;
 
     @OneToMany(mappedBy = "sale", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
-    @BatchSize(size = 16)
+    @BatchSize(size = 3)
     private List<SalePayment> payments;
 
     @ManyToOne(optional = false)

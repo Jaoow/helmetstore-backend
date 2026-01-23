@@ -29,7 +29,7 @@ public class ProductService {
     private final ProductVariantRepository productVariantRepository;
     private final CategoryService categoryService;
 
-    @Cacheable(value = CacheNames.PRODUCT)
+    @Cacheable(value = CacheNames.PRODUCT, key = "'all-products'")
     @Transactional(readOnly = true)
     public List<ProductDto> findAll() {
         return productRepository.findAllWithVariants()
