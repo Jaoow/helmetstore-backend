@@ -47,6 +47,16 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
                      "ORDER BY year DESC, month DESC")
        List<Object[]> findDistinctMonthsByUserEmail(@Param("userEmail") String userEmail);
 
+       /**
+        * Get available months with transaction counts (lightweight for UI month selectors).
+        * Returns: [year, month, count] ordered by most recent first
+        */
+       @Query("SELECT YEAR(t.date) as year, MONTH(t.date) as month, COUNT(t) as count " +
+                     "FROM Transaction t JOIN t.account a WHERE a.user.email = :userEmail " +
+                     "GROUP BY YEAR(t.date), MONTH(t.date) " +
+                     "ORDER BY year DESC, month DESC")
+       List<Object[]> findAvailableMonthsWithCount(@Param("userEmail") String userEmail);
+
        // ============================================================================
        // DOUBLE-ENTRY LEDGER QUERIES
        // ============================================================================
@@ -87,6 +97,23 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
        BigDecimal calculateWalletBalance(
                      @Param("userEmail") String userEmail,
                      @Param("walletType") AccountType walletType);
+
+       /**
+        * Calculate Wallet Balance up to a specific date (inclusive).
+        * <p>
+        * Formula: SUM(amount) WHERE walletDestination = :walletType AND date <= :endDate
+        * <p>
+        * Use this for historical balance queries (e.g., balance at end of month)
+        */
+       @Query("SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t " +
+                     "JOIN t.account a " +
+                     "WHERE a.user.email = :userEmail " +
+                     "AND t.walletDestination = :walletType " +
+                     "AND t.date <= :endDate")
+       BigDecimal calculateWalletBalanceUpToDate(
+                     @Param("userEmail") String userEmail,
+                     @Param("walletType") AccountType walletType,
+                     @Param("endDate") LocalDateTime endDate);
 
        /**
         * Calculate Total Cash Flow (all liquidity movement) within a date range.
@@ -168,6 +195,89 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
                      "(t.detail = 'COST_OF_GOODS_SOLD' AND t.reference LIKE 'SALE#%')) " +
                      "AND t.date >= :startDate AND t.date < :endDate")
        BigDecimal calculateGrossProfitByDateRange(
+                     @Param("userEmail") String userEmail,
+                     @Param("startDate") LocalDateTime startDate,
+                     @Param("endDate") LocalDateTime endDate);
+
+       /**
+        * Calculate total cash INCOME (positive cash flows only).
+        * <p>
+        * Formula: SUM(amount) WHERE affectsCash = true AND amount > 0
+        */
+       @Query("SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t " +
+                     "JOIN t.account a " +
+                     "WHERE a.user.email = :userEmail " +
+                     "AND t.affectsCash = true " +
+                     "AND t.amount > 0")
+       BigDecimal calculateTotalCashIncome(@Param("userEmail") String userEmail);
+
+       /**
+        * Calculate total cash EXPENSES (negative cash flows only, returned as positive).
+        * <p>
+        * Formula: ABS(SUM(amount)) WHERE affectsCash = true AND amount < 0
+        */
+       @Query("SELECT COALESCE(ABS(SUM(t.amount)), 0) FROM Transaction t " +
+                     "JOIN t.account a " +
+                     "WHERE a.user.email = :userEmail " +
+                     "AND t.affectsCash = true " +
+                     "AND t.amount < 0")
+       BigDecimal calculateTotalCashExpense(@Param("userEmail") String userEmail);
+
+       /**
+        * Calculate total cash FLOW (net of all cash movements).
+        * <p>
+        * Formula: SUM(amount) WHERE affectsCash = true
+        */
+       @Query("SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t " +
+                     "JOIN t.account a " +
+                     "WHERE a.user.email = :userEmail " +
+                     "AND t.affectsCash = true")
+       BigDecimal calculateTotalCashFlow(@Param("userEmail") String userEmail);
+
+       /**
+        * Calculate cash INCOME (positive cash flows only) for a date range.
+        * <p>
+        * Formula: SUM(amount) WHERE affectsCash = true AND amount > 0 AND date BETWEEN startDate AND endDate
+        */
+       @Query("SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t " +
+                     "JOIN t.account a " +
+                     "WHERE a.user.email = :userEmail " +
+                     "AND t.affectsCash = true " +
+                     "AND t.amount > 0 " +
+                     "AND t.date >= :startDate AND t.date < :endDate")
+       BigDecimal calculateCashIncomeByDateRange(
+                     @Param("userEmail") String userEmail,
+                     @Param("startDate") LocalDateTime startDate,
+                     @Param("endDate") LocalDateTime endDate);
+
+       /**
+        * Calculate sales revenue (SALE transactions only) for a date range.
+        * Used for calculating profit margins (gross margin, net margin).
+        * <p>
+        * Formula: SUM(amount) WHERE detail = 'SALE' AND date BETWEEN startDate AND endDate
+        */
+       @Query("SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t " +
+                     "JOIN t.account a " +
+                     "WHERE a.user.email = :userEmail " +
+                     "AND t.detail = 'SALE' " +
+                     "AND t.date >= :startDate AND t.date < :endDate")
+       BigDecimal calculateSalesRevenueByDateRange(
+                     @Param("userEmail") String userEmail,
+                     @Param("startDate") LocalDateTime startDate,
+                     @Param("endDate") LocalDateTime endDate);
+
+       /**
+        * Calculate cash EXPENSES (negative cash flows only, returned as positive) for a date range.
+        * <p>
+        * Formula: ABS(SUM(amount)) WHERE affectsCash = true AND amount < 0 AND date BETWEEN startDate AND endDate
+        */
+       @Query("SELECT COALESCE(ABS(SUM(t.amount)), 0) FROM Transaction t " +
+                     "JOIN t.account a " +
+                     "WHERE a.user.email = :userEmail " +
+                     "AND t.affectsCash = true " +
+                     "AND t.amount < 0 " +
+                     "AND t.date >= :startDate AND t.date < :endDate")
+       BigDecimal calculateCashExpenseByDateRange(
                      @Param("userEmail") String userEmail,
                      @Param("startDate") LocalDateTime startDate,
                      @Param("endDate") LocalDateTime endDate);

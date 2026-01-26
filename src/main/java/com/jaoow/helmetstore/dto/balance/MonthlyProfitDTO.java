@@ -26,6 +26,7 @@ public class MonthlyProfitDTO {
 
     private BigDecimal monthlyProfit; // Gross Profit (Revenue - COGS)
     private BigDecimal monthlyNetProfit; // Net Profit (Revenue - COGS - Expenses)
+    private BigDecimal salesRevenue; // Total revenue from sales (for margin calculation)
     // REMOVED: accumulatedNetProfit - use totalBalance (cash balance) instead
     private BigDecimal monthlyExpenseTransactions;
 

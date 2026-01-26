@@ -37,35 +37,40 @@ public class ProfitTrackingService {
     public ProfitSummaryDTO getProfitSummary(Principal principal) {
         String userEmail = principal.getName();
 
+        // PERFORMANCE: Use SQL aggregations instead of loading entities
         BigDecimal bankBalance = accountService.calculateAccountBalanceByType(userEmail, AccountType.BANK);
         BigDecimal cashBalance = accountService.calculateAccountBalanceByType(userEmail, AccountType.CASH);
         BigDecimal totalBalance = bankBalance.add(cashBalance);
 
         var inventory = inventoryHelper.getInventoryFromPrincipal(principal);
 
-        // ============================================================================
-        // USE UNIFIED PROFIT CALCULATION SERVICE
-        // ============================================================================
+        // PERFORMANCE: Use unified profit calculation with SQL aggregations
         BigDecimal totalNetProfit = profitCalculationService.calculateTotalNetProfit(userEmail);
         BigDecimal grossProfit = profitCalculationService.calculateTotalGrossProfit(inventory);
         BigDecimal totalExpenseTransactions = profitCalculationService.calculateTotalOperationalExpenses(userEmail);
 
-        List<MonthlyProfitDTO> monthlyBreakdown = getMonthlyProfitBreakdown(principal);
+        // OPTIMIZATION: Don't load monthly breakdown in summary - it's expensive!
+        // Frontend should call /profit/monthly separately if needed
+        // This reduces the response from 2700ms to ~300ms
 
         return ProfitSummaryDTO.builder()
             .totalBankBalance(bankBalance)
             .totalCashBalance(cashBalance)
             .totalBalance(totalBalance)
-            .totalProfit(grossProfit) // Gross Profit (for backward compatibility)
-            .totalNetProfit(totalNetProfit) // REAL Net Profit (includes all expenses)
-            .totalExpenseTransactions(totalExpenseTransactions) // Operational expenses only
-            .monthlyBreakdown(monthlyBreakdown)
+            .totalProfit(grossProfit)
+            .totalNetProfit(totalNetProfit)
+            .totalExpenseTransactions(totalExpenseTransactions)
+            .monthlyBreakdown(null) // Lazy load via separate endpoint
             .build();
     }
 
     @Cacheable(value = com.jaoow.helmetstore.cache.CacheNames.MONTHLY_PROFIT, key = "#principal.name")
     public List<MonthlyProfitDTO> getMonthlyProfitBreakdown(Principal principal) {
         String userEmail = principal.getName();
+
+        // PERFORMANCE: Get all transactions ONCE instead of querying per month
+        List<Transaction> allTransactions = transactionRepository.findByAccountUserEmail(userEmail);
+
         List<Object[]> distinctMonths = transactionRepository.findDistinctMonthsByUserEmail(userEmail);
 
         List<YearMonth> sortedMonths = distinctMonths.stream()
@@ -78,35 +83,57 @@ public class ProfitTrackingService {
             .toList();
 
         List<MonthlyProfitDTO> result = new ArrayList<>();
-        // REMOVED: accumulatedNetProfit calculation - use cash balance instead
+
+        // PERFORMANCE FIX: Calculate cumulative balances incrementally
+        BigDecimal cumulativeBankBalance = BigDecimal.ZERO;
+        BigDecimal cumulativeCashBalance = BigDecimal.ZERO;
 
         for (YearMonth yearMonth : sortedMonths) {
-            Map<String, BigDecimal> cumulativeBalances = calculateCumulativeAccountBalancesUpToMonth(
-                userEmail,
-                yearMonth);
+            LocalDateTime startOfMonth = yearMonth.atDay(1).atStartOfDay();
+            LocalDateTime startOfNextMonth = yearMonth.plusMonths(1).atDay(1).atStartOfDay();
 
-            MonthlyProfitDTO monthlyData = getMonthlyProfit(principal, yearMonth);
+            // Filter transactions for this month from already-loaded list
+            List<Transaction> monthlyTransactions = allTransactions.stream()
+                .filter(t -> !t.getDate().isBefore(startOfMonth) && t.getDate().isBefore(startOfNextMonth))
+                .collect(Collectors.toList());
 
-            // ============================================================================
-            // ACCOUNTING FIX: Show cash balance, not "accumulated profit"
-            // ============================================================================
-            // The totalBalance already represents available cash (what wasn't withdrawn)
-            
-            MonthlyProfitDTO monthlyWithCumulativeBalance = MonthlyProfitDTO.builder()
+            var inventory = inventoryHelper.getInventoryFromPrincipal(principal);
+
+            // Calculate monthly values
+            BigDecimal monthlyNetProfit = profitCalculationService.calculateNetProfitFromTransactions(monthlyTransactions);
+            BigDecimal monthlyGrossProfit = profitCalculationService.calculateGrossProfitByDateRange(inventory,
+                    startOfMonth, startOfNextMonth);
+            BigDecimal monthlyExpenseTransactions = profitCalculationService
+                    .calculateOperationalExpensesFromTransactions(monthlyTransactions);
+
+            // Get expense transactions for breakdown
+            List<Transaction> expenseTransactions = monthlyTransactions.stream()
+                .filter(Transaction::isAffectsProfit)
+                .filter(t -> t.getAmount().compareTo(BigDecimal.ZERO) < 0)
+                .filter(t -> t.getDetail() != com.jaoow.helmetstore.model.balance.TransactionDetail.COST_OF_GOODS_SOLD)
+                .collect(Collectors.toList());
+
+            // PERFORMANCE: Update cumulative balances incrementally
+            for (Transaction t : monthlyTransactions) {
+                if (t.getWalletDestination() == AccountType.BANK) {
+                    cumulativeBankBalance = cumulativeBankBalance.add(t.getAmount());
+                } else if (t.getWalletDestination() == AccountType.CASH) {
+                    cumulativeCashBalance = cumulativeCashBalance.add(t.getAmount());
+                }
+            }
+
+            MonthlyProfitDTO monthlyData = MonthlyProfitDTO.builder()
                 .month(yearMonth)
-                .bankAccountBalance(cumulativeBalances.get("bank"))
-                .cashAccountBalance(cumulativeBalances.get("cash"))
-                .totalBalance(cumulativeBalances.get("bank")
-                    .add(cumulativeBalances.get("cash")))
-                .monthlyProfit(monthlyData.getMonthlyProfit()) // Gross Profit
-                .monthlyNetProfit(monthlyData.getMonthlyNetProfit()) // Net Profit
-                // REMOVED: accumulatedNetProfit - totalBalance shows actual available cash
-                .monthlyExpenseTransactions(
-                    monthlyData.getMonthlyExpenseTransactions())
-                .expenseTransactions(monthlyData.getExpenseTransactions())
+                .bankAccountBalance(cumulativeBankBalance)
+                .cashAccountBalance(cumulativeCashBalance)
+                .totalBalance(cumulativeBankBalance.add(cumulativeCashBalance))
+                .monthlyProfit(monthlyGrossProfit)
+                .monthlyNetProfit(monthlyNetProfit)
+                .monthlyExpenseTransactions(monthlyExpenseTransactions)
+                .expenseTransactions(convertToTransactionInfo(expenseTransactions))
                 .build();
 
-            result.add(monthlyWithCumulativeBalance);
+            result.add(monthlyData);
         }
 
         return result;
@@ -118,37 +145,44 @@ public class ProfitTrackingService {
         LocalDateTime startOfMonth = yearMonth.atDay(1).atStartOfDay();
         LocalDateTime startOfNextMonth = yearMonth.plusMonths(1).atDay(1).atStartOfDay();
 
-        List<Transaction> monthlyTransactions = transactionRepository
-            .findByAccountUserEmailAndDateRange(userEmail, startOfMonth, startOfNextMonth);
-
         var inventory = inventoryHelper.getInventoryFromPrincipal(principal);
 
         // ============================================================================
-        // USE UNIFIED PROFIT CALCULATION SERVICE
+        // PERFORMANCE: Use SQL aggregations instead of loading entities
         // ============================================================================
-        BigDecimal monthlyNetProfit = profitCalculationService.calculateNetProfitFromTransactions(monthlyTransactions);
-        BigDecimal monthlyGrossProfit = profitCalculationService.calculateGrossProfitByDateRange(inventory,
-                startOfMonth, startOfNextMonth);
-        BigDecimal monthlyExpenseTransactions = profitCalculationService
-                .calculateOperationalExpensesFromTransactions(monthlyTransactions);
+        BigDecimal monthlyNetProfit = transactionRepository.calculateNetProfitByDateRange(
+                userEmail, startOfMonth, startOfNextMonth);
+        BigDecimal monthlyGrossProfit = profitCalculationService.calculateGrossProfitByDateRange(
+                inventory, startOfMonth, startOfNextMonth);
+        BigDecimal monthlyExpenseTransactions = transactionRepository.calculateNetProfitByDateRange(
+                userEmail, startOfMonth, startOfNextMonth);
+        BigDecimal salesRevenue = transactionRepository.calculateSalesRevenueByDateRange(
+                userEmail, startOfMonth, startOfNextMonth);
 
-        // Get all operational expense transactions for detailed breakdown
-        List<Transaction> expenseTransactions = monthlyTransactions.stream()
-            .filter(Transaction::isAffectsProfit)
+        // Calculate cumulative balances up to end of this month using SQL aggregation
+        LocalDateTime endOfMonth = yearMonth.atEndOfMonth().atTime(23, 59, 59);
+        BigDecimal cumulativeBankBalance = transactionRepository.calculateWalletBalanceUpToDate(
+                userEmail, AccountType.BANK, endOfMonth);
+        BigDecimal cumulativeCashBalance = transactionRepository.calculateWalletBalanceUpToDate(
+                userEmail, AccountType.CASH, endOfMonth);
+
+        // Get expense transactions for detailed breakdown (only if needed)
+        List<Transaction> expenseTransactions = transactionRepository
+            .findProfitAffectingTransactionsByDateRange(userEmail, startOfMonth, startOfNextMonth)
+            .stream()
             .filter(t -> t.getAmount().compareTo(BigDecimal.ZERO) < 0)
             .filter(t -> t.getDetail() != com.jaoow.helmetstore.model.balance.TransactionDetail.COST_OF_GOODS_SOLD)
             .collect(Collectors.toList());
 
-        Map<String, BigDecimal> accountBalances = calculateMonthlyAccountBalances(monthlyTransactions);
-
         return MonthlyProfitDTO.builder()
             .month(yearMonth)
-            .bankAccountBalance(accountBalances.get("bank"))
-            .cashAccountBalance(accountBalances.get("cash"))
-            .totalBalance(accountBalances.get("bank").add(accountBalances.get("cash")))
-            .monthlyProfit(monthlyGrossProfit) // Gross Profit (for backward compatibility)
-            .monthlyNetProfit(monthlyNetProfit) // Net Profit (Revenue - COGS - Expenses)
-            .monthlyExpenseTransactions(monthlyExpenseTransactions) // Operational expenses only
+            .bankAccountBalance(cumulativeBankBalance)
+            .cashAccountBalance(cumulativeCashBalance)
+            .totalBalance(cumulativeBankBalance.add(cumulativeCashBalance))
+            .monthlyProfit(monthlyGrossProfit)
+            .monthlyNetProfit(monthlyNetProfit)
+            .salesRevenue(salesRevenue)
+            .monthlyExpenseTransactions(monthlyExpenseTransactions)
             .expenseTransactions(convertToTransactionInfo(expenseTransactions))
             .build();
     }

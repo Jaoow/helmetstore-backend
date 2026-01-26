@@ -1,6 +1,7 @@
 package com.jaoow.helmetstore.controller;
 
 import com.jaoow.helmetstore.dto.balance.AccountInfo;
+import com.jaoow.helmetstore.dto.balance.AvailableMonthDTO;
 import com.jaoow.helmetstore.dto.balance.BalanceConversionDTO;
 import com.jaoow.helmetstore.dto.balance.CashFlowSummaryDTO;
 import com.jaoow.helmetstore.dto.balance.MonthlyCashFlowDTO;
@@ -33,6 +34,14 @@ public class AccountController {
     @GetMapping
     public List<AccountInfo> getAccountInfo(Principal principal) {
         return accountService.getAccountInfo(principal);
+    }
+
+    /**
+     * Get available months with transaction counts (lightweight for month selector UI)
+     */
+    @GetMapping("/available-months")
+    public List<AvailableMonthDTO> getAvailableMonths(Principal principal) {
+        return transactionService.getAvailableMonths(principal.getName());
     }
 
     @GetMapping("/financial-summary")

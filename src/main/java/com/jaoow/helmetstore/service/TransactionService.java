@@ -247,7 +247,7 @@ public class TransactionService {
     }
 
     @Transactional
-    public void createRefundTransactionForCanceledItem(PurchaseOrder purchaseOrder, BigDecimal refundAmount, 
+    public void createRefundTransactionForCanceledItem(PurchaseOrder purchaseOrder, BigDecimal refundAmount,
             String itemDescription, Principal principal) {
         Account account = accountService.findAccountByPaymentMethodAndUser(purchaseOrder.getPaymentMethod(), principal)
                 .orElseThrow(() -> new AccountNotFoundException(purchaseOrder.getPaymentMethod()));
@@ -337,6 +337,21 @@ public class TransactionService {
                 .filter(Transaction::isAffectsCash) // Only cash-affecting transactions
                 .map(Transaction::getAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    /**
+     * Get available months with transaction counts (lightweight for UI month selectors).
+     * This avoids loading full transaction data when populating month selection dropdowns.
+     */
+    public List<com.jaoow.helmetstore.dto.balance.AvailableMonthDTO> getAvailableMonths(String userEmail) {
+        List<Object[]> results = transactionRepository.findAvailableMonthsWithCount(userEmail);
+
+        return results.stream()
+                .map(row -> com.jaoow.helmetstore.dto.balance.AvailableMonthDTO.builder()
+                        .month(java.time.YearMonth.of(((Number) row[0]).intValue(), ((Number) row[1]).intValue()))
+                        .transactionCount(((Number) row[2]).intValue())
+                        .build())
+                .toList();
     }
 
     /**

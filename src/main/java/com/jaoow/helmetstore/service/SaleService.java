@@ -284,7 +284,7 @@ public class SaleService {
         Inventory inventory = inventoryHelper.getInventoryFromPrincipal(principal);
         Sale sale = saleRepository.findByIdAndInventory(id, inventory)
                 .orElseThrow(() -> new ResourceNotFoundException("Sale not found with ID: " + id));
-        
+
         try {
             return saleReceiptPDFService.generateSaleReceipt(sale);
         } catch (IOException e) {
@@ -292,31 +292,37 @@ public class SaleService {
         }
     }
 
-    @Cacheable(value = CacheNames.SALES_HISTORY, 
+    @Cacheable(value = CacheNames.SALES_HISTORY,
             key = "#principal.name + '-' + (#year != null ? #year : 'all') + '-' + (#month != null ? #month : 'all')")
     @Transactional(readOnly = true)
     public SaleHistoryResponse getHistory(Integer year, Integer month, Principal principal) {
         Inventory inventory = inventoryHelper.getInventoryFromPrincipal(principal);
-        
+
         List<Sale> sales;
         if (year != null && month != null) {
-            // Optimized: Filter sales by year and month directly in the database
+            // STEP 1: Fetch sales with items, variants and products (1 query)
             java.time.LocalDateTime startDate = java.time.LocalDateTime.of(year, month, 1, 0, 0, 0);
             java.time.LocalDateTime endDate = startDate.plusMonths(1);
             sales = saleRepository.findByInventoryAndDateRange(inventory, startDate, endDate);
         } else {
-            // Return all sales if no filter specified (backward compatibility)
+            // STEP 1: Fetch sales with items, variants and products (1 query)
             sales = saleRepository.findAllByInventoryWithProductVariantsAndProducts(inventory);
+        }
+
+        // STEP 2: Fetch payments for all sales in a SINGLE batch query (eliminates N+1)
+        if (!sales.isEmpty()) {
+            saleRepository.loadPaymentsForSales(sales);
         }
 
         List<SaleResponseDTO> saleDTOs = sales.stream()
                 .map(this::convertToSaleResponseDTO)
                 .collect(Collectors.toList());
 
-        // Optimized: Collect variants and products in a single stream iteration
+        // PERFORMANCE: Collect variants and products from already-loaded entities
+        // Total queries: 2 (1 for items/variants/products + 1 for payments)
         Set<ProductVariant> variantSet = new HashSet<>();
         Set<com.jaoow.helmetstore.model.Product> productSet = new HashSet<>();
-        
+
         sales.forEach(sale -> {
             if (sale.getItems() != null && !sale.getItems().isEmpty()) {
                 sale.getItems().forEach(item -> {
@@ -341,11 +347,11 @@ public class SaleService {
     @Transactional(readOnly = true)
     public SaleDetailDTO getById(Long id, Principal principal) {
         Inventory inventory = inventoryHelper.getInventoryFromPrincipal(principal);
-        
+
         // Fetch items primeiro
         Sale sale = saleRepository.findByIdAndInventoryWithItems(id, inventory)
                 .orElseThrow(() -> new ResourceNotFoundException("Sale not found with ID: " + id));
-        
+
         // Depois fetch payments (evita MultipleBagFetchException)
         saleRepository.findByIdAndInventoryWithPayments(id, inventory);
 
@@ -462,7 +468,7 @@ public class SaleService {
 
         return dto;
     }
-    
+
     private SalePaymentDTO convertToSalePaymentDTO(SalePayment salePayment) {
         return SalePaymentDTO.builder()
                 .paymentMethod(salePayment.getPaymentMethod())

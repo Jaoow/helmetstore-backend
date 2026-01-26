@@ -37,7 +37,7 @@ public interface SaleRepository extends JpaRepository<Sale, Long> {
                 WHERE s.id = :id AND s.inventory = :inventory
                 """)
         Optional<Sale> findByIdAndInventoryWithPayments(@Param("id") Long id, @Param("inventory") Inventory inventory);
-        
+
         Optional<Sale> findByIdAndInventory(Long id, Inventory inventory);
 
         @Query("""
@@ -88,6 +88,15 @@ public interface SaleRepository extends JpaRepository<Sale, Long> {
                         @Param("inventory") Inventory inventory,
                         @Param("startDate") LocalDateTime startDate,
                         @Param("endDate") LocalDateTime endDate);
+
+        // PERFORMANCE FIX: Busca payments em batch para as sales já carregadas (evita N+1)
+        @QueryHints(@QueryHint(name = "org.hibernate.readOnly", value = "true"))
+        @Query("""
+                        SELECT DISTINCT s FROM Sale s
+                        LEFT JOIN FETCH s.payments
+                        WHERE s IN :sales
+                        """)
+        List<Sale> loadPaymentsForSales(@Param("sales") List<Sale> sales);
 
         @Query("""
                         SELECT COALESCE(SUM(s.totalProfit), 0)
