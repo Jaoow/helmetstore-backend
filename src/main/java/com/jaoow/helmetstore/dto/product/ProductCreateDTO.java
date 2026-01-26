@@ -29,6 +29,7 @@ public class ProductCreateDTO {
 
     private String categoryName;
 
+    @NotBlank(message = "Pelo menos uma variante é obrigatória")
     private List<ProductVariantDTO> variants;
 
     @Getter

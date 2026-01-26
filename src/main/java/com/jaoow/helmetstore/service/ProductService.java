@@ -57,6 +57,11 @@ public class ProductService {
     public ProductDto save(ProductCreateDTO productDTO, Principal principal) {
         Inventory inventory = inventoryHelper.getInventoryFromPrincipal(principal);
         
+        // Validate that at least one variant is provided
+        if (productDTO.getVariants() == null || productDTO.getVariants().isEmpty()) {
+            throw new IllegalArgumentException("Pelo menos uma variante (SKU e Tamanho) é obrigatória");
+        }
+        
         Product product = modelMapper.map(productDTO, Product.class);
         product.setInventory(inventory);
 
