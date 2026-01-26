@@ -341,8 +341,13 @@ public class SaleService {
     @Transactional(readOnly = true)
     public SaleDetailDTO getById(Long id, Principal principal) {
         Inventory inventory = inventoryHelper.getInventoryFromPrincipal(principal);
-        Sale sale = saleRepository.findByIdAndInventory(id, inventory)
+        
+        // Fetch items primeiro
+        Sale sale = saleRepository.findByIdAndInventoryWithItems(id, inventory)
                 .orElseThrow(() -> new ResourceNotFoundException("Sale not found with ID: " + id));
+        
+        // Depois fetch payments (evita MultipleBagFetchException)
+        saleRepository.findByIdAndInventoryWithPayments(id, inventory);
 
         return convertToSaleDetailDTO(sale);
     }

@@ -21,7 +21,23 @@ import java.util.Optional;
 @Repository
 public interface SaleRepository extends JpaRepository<Sale, Long> {
 
-        @EntityGraph(attributePaths = {"items", "items.productVariant", "items.productVariant.product", "payments"})
+        // Busca em duas etapas para evitar MultipleBagFetchException
+        @Query("""
+                SELECT DISTINCT s FROM Sale s
+                LEFT JOIN FETCH s.items si
+                LEFT JOIN FETCH si.productVariant sipv
+                LEFT JOIN FETCH sipv.product
+                WHERE s.id = :id AND s.inventory = :inventory
+                """)
+        Optional<Sale> findByIdAndInventoryWithItems(@Param("id") Long id, @Param("inventory") Inventory inventory);
+
+        @Query("""
+                SELECT DISTINCT s FROM Sale s
+                LEFT JOIN FETCH s.payments
+                WHERE s.id = :id AND s.inventory = :inventory
+                """)
+        Optional<Sale> findByIdAndInventoryWithPayments(@Param("id") Long id, @Param("inventory") Inventory inventory);
+        
         Optional<Sale> findByIdAndInventory(Long id, Inventory inventory);
 
         @Query("""
@@ -43,9 +59,8 @@ public interface SaleRepository extends JpaRepository<Sale, Long> {
                         """)
         List<Sale> findAllByInventoryWithProductVariantsAndProducts(@Param("inventory") Inventory inventory);
 
-        // Versão paginada para consultas com muitos registros - usando EntityGraph
+        // Versão paginada para consultas com muitos registros - sem EntityGraph para evitar MultipleBagFetchException
         @QueryHints(@QueryHint(name = "org.hibernate.readOnly", value = "true"))
-        @EntityGraph(attributePaths = {"items", "items.productVariant", "items.productVariant.product", "payments"})
         @Query(value = """
                         SELECT DISTINCT s FROM Sale s
                         WHERE s.inventory = :inventory
