@@ -142,15 +142,15 @@ public class AccountService {
                 conversionDTO.getFromAccountType().name().charAt(0)
                         + conversionDTO.getToAccountType().name().substring(0, 1));
 
-        LocalDateTime now = LocalDateTime.now();
-        LocalDateTime toTransactionTime = now.plusSeconds(2);
+        LocalDateTime clientDate = conversionDTO.getDate();
+        LocalDateTime toTransactionTime = clientDate.plusSeconds(2);
 
         // Determine wallet destinations based on account types
         AccountType fromWalletDest = conversionDTO.getFromAccountType();
         AccountType toWalletDest = conversionDTO.getToAccountType();
 
         Transaction fromTransaction = Transaction.builder()
-                .date(now)
+                .date(clientDate)
                 .type(TransactionType.EXPENSE)
                 .detail(TransactionDetail.INTERNAL_TRANSFER_OUT) // Transferência interna
                 .description(description)

@@ -6,6 +6,7 @@ import jakarta.validation.constraints.NotNull;
 import lombok.*;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 @Getter
 @Setter
@@ -13,6 +14,9 @@ import java.math.BigDecimal;
 @AllArgsConstructor
 @Builder
 public class BalanceConversionDTO {
+
+    @NotNull
+    private LocalDateTime date;
 
     @NotNull
     @DecimalMin(value = "0.0", inclusive = false)

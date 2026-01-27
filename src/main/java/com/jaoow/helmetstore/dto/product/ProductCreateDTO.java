@@ -21,7 +21,7 @@ public class ProductCreateDTO {
     @NotBlank(message = "Color is mandatory")
     private String color;
 
-    @Pattern(regexp = "https?://.*", message = "Invalid URL")
+    @Pattern(regexp = "^$|https?://.*", message = "Invalid URL format")
     private String imgUrl;
 
     @DecimalMin("0.0")
