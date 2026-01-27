@@ -29,8 +29,12 @@ import java.util.List;
 @EnableMethodSecurity(securedEnabled = true)
 public class SecurityConfig {
 
-    private static final String[] PUBLIC_ENDPOINTS = { "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html",
-            "/swagger-ui/**", "/webjars/**" };
+    private static final String[] PUBLIC_ENDPOINTS = {
+            "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html",
+            "/swagger-ui/**", "/webjars/**",
+            "/actuator/**",           // Spring Boot Actuator endpoints
+            "/api/diagnostics/**"     // Endpoints de diagnóstico customizados
+    };
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http, JwtRequestFilter jwtRequestFilter,

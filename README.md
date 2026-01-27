@@ -15,6 +15,59 @@ Bem-vindo ao repositório do backend do HelmetStore! Este projeto é uma API des
 - **Controle de Estoque**: Atualização dinâmica de inventário.
 - **Processamento de Pedidos**: Criação e gerenciamento de compras.
 - **API RESTful**: Estruturada para facilitar integrações.
+- **🔍 Observabilidade & Performance**: Sistema completo de monitoramento e análise de performance.
+
+## 📊 Observabilidade e Monitoramento
+
+Este projeto implementa um **sistema completo de observabilidade** para monitoramento e otimização de performance:
+
+- ✅ **Detecção Automática de N+1 Queries**: Identifica e alerta sobre problemas de lazy loading
+- ✅ **Monitoramento de Slow Queries**: Detecta queries lentas (> 100ms)
+- ✅ **Métricas de HTTP**: Latência, throughput, requisições lentas
+- ✅ **Análise de Cache**: Hits, misses, eficiência
+- ✅ **Métricas de JVM**: CPU, memória, threads, GC
+- ✅ **Hibernate Statistics**: Estatísticas completas do ORM
+- ✅ **Endpoints de Diagnóstico**: API REST para visualizar métricas em tempo real
+- ✅ **Integração Prometheus/Grafana**: Exportação de métricas
+
+### Guias Disponíveis
+
+| Documento | Descrição |
+|-----------|-----------|
+| [OBSERVABILITY_SUMMARY.md](OBSERVABILITY_SUMMARY.md) | 📋 Sumário da implementação |
+| [OBSERVABILITY_QUICKSTART.md](OBSERVABILITY_QUICKSTART.md) | ⚡ Guia rápido (5 min) |
+| [OBSERVABILITY.md](OBSERVABILITY.md) | 📚 Guia completo (60+ páginas) |
+| [PERFORMANCE_OPTIMIZATION_GUIDE.md](PERFORMANCE_OPTIMIZATION_GUIDE.md) | 🎯 Guia de otimizações |
+| [OPTIMIZATION_NOTES.md](OPTIMIZATION_NOTES.md) | 📝 Otimizações já realizadas |
+
+### Quick Start - Monitoramento
+
+```bash
+# 1. Iniciar aplicação
+./mvnw spring-boot:run
+
+# 2. Ver health check
+curl http://localhost:8080/actuator/health
+
+# 3. Ver métricas completas
+curl http://localhost:8080/api/diagnostics/performance
+
+# 4. Ver métricas Prometheus
+curl http://localhost:8080/actuator/prometheus
+```
+
+### Endpoints de Diagnóstico
+
+```
+GET /api/diagnostics/performance    # Visão geral completa
+GET /api/diagnostics/hibernate      # Estatísticas do Hibernate
+GET /api/diagnostics/queries        # Top queries e slow queries
+GET /api/diagnostics/cache          # Estatísticas de cache
+GET /api/diagnostics/jvm            # Recursos da JVM
+GET /api/diagnostics/http           # Métricas de requisições
+```
+
+**📖 Para mais detalhes, consulte [OBSERVABILITY_QUICKSTART.md](OBSERVABILITY_QUICKSTART.md)**
 
 ## Como Executar o Projeto
 
