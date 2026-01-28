@@ -1,10 +1,7 @@
 package com.jaoow.helmetstore.controller;
 
 import com.jaoow.helmetstore.dto.balance.AvailableMonthDTO;
-import com.jaoow.helmetstore.dto.sale.SaleCreateDTO;
-import com.jaoow.helmetstore.dto.sale.SaleHistoryResponse;
-import com.jaoow.helmetstore.dto.sale.SaleDetailDTO;
-import com.jaoow.helmetstore.dto.sale.SaleResponseDTO;
+import com.jaoow.helmetstore.dto.sale.*;
 import com.jaoow.helmetstore.service.SaleService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -73,6 +70,17 @@ public class SaleController {
     @DeleteMapping("/{id}")
     public void delete(@PathVariable Long id, Principal principal) {
         saleService.delete(id, principal);
+    }
+
+    /**
+     * Cancel a sale (total or partial) with optional refund
+     */
+    @PostMapping("/{id}/cancel")
+    public SaleCancellationResponseDTO cancelSale(
+            @PathVariable Long id,
+            @RequestBody @Valid SaleCancellationRequestDTO request,
+            Principal principal) {
+        return saleService.cancelSale(id, request, principal);
     }
 
     @GetMapping("/{id}/receipt")

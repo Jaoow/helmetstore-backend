@@ -1,10 +1,7 @@
 package com.jaoow.helmetstore.service;
 
 import com.jaoow.helmetstore.dto.balance.AvailableMonthDTO;
-import com.jaoow.helmetstore.dto.sale.SaleCreateDTO;
-import com.jaoow.helmetstore.dto.sale.SaleDetailDTO;
-import com.jaoow.helmetstore.dto.sale.SaleHistoryResponse;
-import com.jaoow.helmetstore.dto.sale.SaleResponseDTO;
+import com.jaoow.helmetstore.dto.sale.*;
 import com.jaoow.helmetstore.exception.ResourceNotFoundException;
 import com.jaoow.helmetstore.helper.InventoryHelper;
 import com.jaoow.helmetstore.model.Sale;
@@ -41,6 +38,7 @@ public class SaleService {
     private final DeleteSaleUseCase deleteSaleUseCase;
     private final GetSaleHistoryUseCase getSaleHistoryUseCase;
     private final GenerateSaleReceiptUseCase generateSaleReceiptUseCase;
+    private final CancelSaleUseCase cancelSaleUseCase;
 
     @Transactional(readOnly = true)
     public Page<SaleResponseDTO> findAll(Pageable pageable, Principal principal) {
@@ -67,6 +65,10 @@ public class SaleService {
 
     public byte[] generateReceipt(Long saleId, Principal principal) {
         return generateSaleReceiptUseCase.execute(saleId, principal);
+    }
+
+    public SaleCancellationResponseDTO cancelSale(Long saleId, SaleCancellationRequestDTO request, Principal principal) {
+        return cancelSaleUseCase.execute(saleId, request, principal);
     }
 
     /**

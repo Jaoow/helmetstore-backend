@@ -66,5 +66,22 @@ public class SaleItem {
      */
     @Column(name = "cost_basis_at_sale", precision = 10, scale = 2)
     private BigDecimal costBasisAtSale;
+
+    // ============================================================================
+    // CANCELLATION FIELDS (for partial cancellations)
+    // ============================================================================
+
+    /**
+     * Flag indicando se este item foi cancelado
+     */
+    @Column(name = "is_cancelled", nullable = false)
+    @Builder.Default
+    private Boolean isCancelled = false;
+
+    /**
+     * Quantidade cancelada (para cancelamentos parciais de itens)
+     */
+    @Column(name = "cancelled_quantity")
+    private Integer cancelledQuantity;
 }
 
