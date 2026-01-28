@@ -1,6 +1,5 @@
 package com.jaoow.helmetstore.observability;
 
-import io.micrometer.core.instrument.MeterRegistry;
 import org.hibernate.cfg.AvailableSettings;
 import org.springframework.boot.autoconfigure.orm.jpa.HibernatePropertiesCustomizer;
 import org.springframework.context.annotation.Bean;

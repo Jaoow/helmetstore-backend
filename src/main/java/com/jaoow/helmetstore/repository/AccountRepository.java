@@ -2,7 +2,6 @@ package com.jaoow.helmetstore.repository;
 
 import com.jaoow.helmetstore.model.balance.Account;
 import com.jaoow.helmetstore.model.balance.AccountType;
-import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;

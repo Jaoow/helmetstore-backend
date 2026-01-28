@@ -25,7 +25,6 @@ public class HttpPerformanceFilter implements Filter {
     private final QueryPerformanceInspector queryInspector;
     private final RequestHistoryTracker historyTracker;
 
-    private static final String START_TIME_ATTRIBUTE = "filterStartTime";
     private static final long SLOW_REQUEST_THRESHOLD_MS = 500;
 
     public HttpPerformanceFilter(MeterRegistry meterRegistry,
