@@ -1,6 +1,7 @@
 package com.jaoow.helmetstore.service;
 
 import com.jaoow.helmetstore.cache.CacheNames;
+import com.jaoow.helmetstore.dto.balance.AvailableMonthDTO;
 import com.jaoow.helmetstore.dto.reference.SimpleProductDTO;
 import com.jaoow.helmetstore.dto.reference.SimpleProductVariantDTO;
 import com.jaoow.helmetstore.dto.sale.*;
@@ -342,6 +343,22 @@ public class SaleService {
                 .collect(Collectors.toList());
 
         return new SaleHistoryResponse(saleDTOs, products, productVariants);
+    }
+
+    /**
+     * Get available months with sale counts (lightweight for UI month selectors).
+     * This avoids loading full sale data when populating month selection dropdowns.
+     */
+    public List<AvailableMonthDTO> getAvailableMonths(Principal principal) {
+        Inventory inventory = inventoryHelper.getInventoryFromPrincipal(principal);
+        List<Object[]> results = saleRepository.findAvailableMonthsWithCount(inventory);
+
+        return results.stream()
+                .map(row -> AvailableMonthDTO.builder()
+                        .month(java.time.YearMonth.of(((Number) row[0]).intValue(), ((Number) row[1]).intValue()))
+                        .transactionCount(((Number) row[2]).intValue())
+                        .build())
+                .toList();
     }
 
     @Transactional(readOnly = true)

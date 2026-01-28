@@ -1,5 +1,6 @@
 package com.jaoow.helmetstore.controller;
 
+import com.jaoow.helmetstore.dto.balance.AvailableMonthDTO;
 import com.jaoow.helmetstore.dto.sale.SaleCreateDTO;
 import com.jaoow.helmetstore.dto.sale.SaleHistoryResponse;
 import com.jaoow.helmetstore.dto.sale.SaleDetailDTO;
@@ -48,6 +49,14 @@ public class SaleController {
             @RequestParam(required = false) Integer month,
             Principal principal) {
         return saleService.getHistory(year, month, principal);
+    }
+
+    /**
+     * Get available months with sale counts (lightweight for month selector UI)
+     */
+    @GetMapping("/available-months")
+    public List<AvailableMonthDTO> getAvailableMonths(Principal principal) {
+        return saleService.getAvailableMonths(principal);
     }
 
     @PostMapping

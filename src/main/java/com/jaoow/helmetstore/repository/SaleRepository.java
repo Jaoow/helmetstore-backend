@@ -4,7 +4,6 @@ import com.jaoow.helmetstore.model.Sale;
 import com.jaoow.helmetstore.model.inventory.Inventory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.jpa.repository.QueryHints;
@@ -109,5 +108,15 @@ public interface SaleRepository extends JpaRepository<Sale, Long> {
                         @Param("inventory") Inventory inventory,
                         @Param("startDate") LocalDateTime startDate,
                         @Param("endDate") LocalDateTime endDate);
+
+        /**
+         * Get available months with sale counts (lightweight for UI month selectors).
+         * Returns: [year, month, count] ordered by most recent first
+         */
+        @Query("SELECT YEAR(s.date) as year, MONTH(s.date) as month, COUNT(s) as count " +
+                        "FROM Sale s WHERE s.inventory = :inventory " +
+                        "GROUP BY YEAR(s.date), MONTH(s.date) " +
+                        "ORDER BY year DESC, month DESC")
+        List<Object[]> findAvailableMonthsWithCount(@Param("inventory") Inventory inventory);
 
 }
