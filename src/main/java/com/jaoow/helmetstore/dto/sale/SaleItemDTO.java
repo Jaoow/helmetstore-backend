@@ -17,4 +17,6 @@ public class SaleItemDTO {
     private BigDecimal unitProfit;
     private BigDecimal totalItemPrice;
     private BigDecimal totalItemProfit;
+    private Boolean isCancelled;
+    private Integer cancelledQuantity;
 }

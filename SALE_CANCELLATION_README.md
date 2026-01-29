@@ -7,9 +7,9 @@ O sistema de cancelamento de vendas permite **cancelar vendas de forma controlad
 ## 🎯 Funcionalidades
 
 ### Status da Venda
-- **FINALIZADA** - Venda confirmada e ativa
-- **CANCELADA** - Venda totalmente cancelada
-- **CANCELADA_PARCIAL** - Venda parcialmente cancelada (alguns itens foram cancelados)
+- **COMPLETED** - Venda confirmada e ativa
+- **CANCELLED** - Venda totalmente cancelada
+- **PARTIALLY_CANCELLED** - Venda parcialmente cancelada (alguns itens foram cancelados)
 
 > **Importante:** O status indica a situação comercial. O reembolso financeiro é controlado por **flag de estorno** e **valor reembolsado**, e não pelo status.
 
@@ -18,12 +18,12 @@ O sistema de cancelamento de vendas permite **cancelar vendas de forma controlad
 #### 1. Cancelamento Total
 - Cancela todos os itens da venda
 - Reverte todo o estoque
-- Status muda para `CANCELADA`
+- Status muda para `CANCELLED`
 
 #### 2. Cancelamento Parcial
 - Cancela apenas itens específicos
 - Reverte estoque proporcionalmente
-- Status muda para `CANCELADA_PARCIAL`
+- Status muda para `PARTIALLY_CANCELLED`
 - Permite cancelar quantidade parcial de um item
 
 ### Estorno / Reembolso
@@ -40,8 +40,8 @@ O sistema suporta estorno financeiro independente do cancelamento:
 - ✅ Valor do estorno não pode ser maior que o valor pago
 - ✅ Valor do estorno deve ser maior que zero
 - ✅ Quando há estorno, é gerada uma **Transação de Saída**
-- ✅ `CANCELADA` → pode ou não gerar estorno (opcional)
-- ⚠️ `CANCELADA_PARCIAL` → **estorno é obrigatório** (regra de negócio)
+- ✅ `CANCELLED` → pode ou não gerar estorno (opcional)
+- ⚠️ `PARTIALLY_CANCELLED` → **estorno é obrigatório** (regra de negócio)
 
 ## 📋 Metadados de Cancelamento
 
@@ -55,7 +55,6 @@ O sistema registra:
 - `DESISTENCIA` - Desistência do cliente
 - `DEFEITO` - Produto com defeito
 - `ERRO_LANCAMENTO` - Erro no lançamento
-- `FALTA_ESTOQUE` - Falta de estoque
 - `PAGAMENTO_NAO_CONFIRMADO` - Pagamento não confirmado
 - `DEVOLUCAO` - Devolução
 - `OUTROS` - Outros motivos
@@ -113,7 +112,7 @@ Cancela uma venda (total ou parcialmente) com possibilidade de estorno.
 ```json
 {
   "saleId": 456,
-  "status": "CANCELADA",
+  "status": "CANCELLED",
   "cancelledAt": "2026-01-28T14:30:00",
   "cancelledBy": "user@example.com",
   "cancellationReason": "DESISTENCIA",
@@ -176,7 +175,7 @@ O cancelamento invalida automaticamente os seguintes caches:
 ### Novas Colunas na Tabela `sale`
 
 ```sql
-status VARCHAR(30) NOT NULL DEFAULT 'FINALIZADA'
+status VARCHAR(30) NOT NULL DEFAULT 'COMPLETED'
 cancelled_at TIMESTAMP
 cancelled_by VARCHAR(255)
 cancellation_reason VARCHAR(50)
@@ -220,7 +219,7 @@ POST /sales/456/cancel
   "refundPaymentMethod": "CASH"
 }
 ```
-com Estorno Proporcional
+### 2. Cancelamento Parcial com Estorno Proporcional
 
 ```bash
 POST /sales/456/cancel
@@ -228,8 +227,8 @@ POST /sales/456/cancel
 
 ```json
 {
-  "reason": "FALTA_ESTOQUE",
-  "notes": "Tamanho G não disponível",
+  "reason": "DEFEITO",
+  "notes": "Produto com defeito, cliente quer cancelar apenas 1 item",
   "cancelEntireSale": false,
   "itemsToCancel": [
     {
@@ -244,7 +243,6 @@ POST /sales/456/cancel
 ```
 
 > ⚠️ **Nota:** Cancelamento parcial **sempre exige estorno** do valor proporcional.
-```
 
 ### 3. Cancelamento Total sem Estorno
 

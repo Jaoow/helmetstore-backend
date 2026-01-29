@@ -29,7 +29,7 @@ import java.util.List;
 
 /**
  * Use Case: Cancel a sale (total or partial)
- * 
+ *
  * Responsibilities:
  * - Validate cancellation request
  * - Update sale status
@@ -86,13 +86,17 @@ public class CancelSaleUseCase {
         // 6. Generate refund transaction if needed
         Long refundTransactionId = null;
         if (request.getGenerateRefund()) {
-            validateRefund(request, totalPaid);
+            validateRefund(sale, request, totalPaid);
             refundTransactionId = generateRefundTransaction(sale, request, principal);
-            
+
             // Note: hasRefund is technically derivable from (refundAmount != null && refundAmount > 0)
             // but we maintain it as a flag for query performance and clarity
             sale.setHasRefund(true);
-            sale.setRefundAmount(request.getRefundAmount());
+
+            // Accumulate refund amount if multiple refunds occur
+            BigDecimal previousRefund = sale.getRefundAmount() != null ? sale.getRefundAmount() : BigDecimal.ZERO;
+            sale.setRefundAmount(previousRefund.add(request.getRefundAmount()));
+
             sale.setRefundPaymentMethod(request.getRefundPaymentMethod());
             sale.setRefundTransactionId(refundTransactionId);
         }
@@ -120,11 +124,6 @@ public class CancelSaleUseCase {
         // Cannot cancel an already fully cancelled sale
         if (sale.getStatus() == SaleStatus.CANCELLED) {
             throw new BusinessException("Não é possível cancelar uma venda já totalmente cancelada");
-        }
-
-        // Prevent duplicate refunds (domain-level protection)
-        if (request.getGenerateRefund() && sale.getHasRefund() != null && sale.getHasRefund()) {
-            throw new BusinessException("Venda já possui estorno registrado. Não é permitido estorno duplicado.");
         }
 
         // Validate payment exists when refund is requested
@@ -162,7 +161,7 @@ public class CancelSaleUseCase {
         }
     }
 
-    private void validateRefund(SaleCancellationRequestDTO request, BigDecimal totalPaid) {
+    private void validateRefund(Sale sale, SaleCancellationRequestDTO request, BigDecimal totalPaid) {
         if (request.getRefundAmount() == null) {
             throw new BusinessException("O valor do estorno é obrigatório quando generateRefund = true");
         }
@@ -175,12 +174,22 @@ public class CancelSaleUseCase {
             throw new BusinessException("O valor do estorno deve ser maior que zero");
         }
 
-        if (request.getRefundAmount().compareTo(totalPaid) > 0) {
-            throw new BusinessException("O valor do estorno não pode ser maior que o valor pago: " + totalPaid);
-        }
-
         if (totalPaid.compareTo(BigDecimal.ZERO) == 0) {
             throw new BusinessException("Não é possível gerar estorno para venda não paga");
+        }
+
+        // Verify that total refund (including previous refunds) does not exceed total paid
+        BigDecimal totalAlreadyRefunded = sale.getRefundAmount() != null ? sale.getRefundAmount() : BigDecimal.ZERO;
+        BigDecimal totalRefundAfterThisRequest = totalAlreadyRefunded.add(request.getRefundAmount());
+
+        if (totalRefundAfterThisRequest.compareTo(totalPaid) > 0) {
+            throw new BusinessException(String.format(
+                "O valor do estorno (R$ %.2f) somado aos estornos já realizados (R$ %.2f) excede o valor total pago na venda (R$ %.2f). Disponível para estorno: R$ %.2f",
+                request.getRefundAmount(),
+                totalAlreadyRefunded,
+                totalPaid,
+                totalPaid.subtract(totalAlreadyRefunded)
+            ));
         }
     }
 
@@ -201,11 +210,11 @@ public class CancelSaleUseCase {
                     .orElseThrow(() -> new BusinessException("Item não encontrado: " + cancellation.getItemId()));
 
             reverseInventoryForItem(item, cancellation.getQuantityToCancel(), inventory);
-            
+
             // Update item cancellation tracking
             int currentCancelled = item.getCancelledQuantity() != null ? item.getCancelledQuantity() : 0;
             item.setCancelledQuantity(currentCancelled + cancellation.getQuantityToCancel());
-            
+
             if (item.getCancelledQuantity().equals(item.getQuantity())) {
                 item.setIsCancelled(true);
             }
@@ -238,9 +247,9 @@ public class CancelSaleUseCase {
         } else {
             // Check if all items are now cancelled
             boolean allItemsCancelled = sale.getItems().stream()
-                    .allMatch(item -> item.getIsCancelled() || 
+                    .allMatch(item -> item.getIsCancelled() ||
                              (item.getCancelledQuantity() != null && item.getCancelledQuantity().equals(item.getQuantity())));
-            
+
             if (allItemsCancelled) {
                 sale.setStatus(SaleStatus.CANCELLED);
             } else {
@@ -254,7 +263,7 @@ public class CancelSaleUseCase {
         AccountType accountType = (request.getRefundPaymentMethod() == PaymentMethod.CASH)
                 ? AccountType.CASH
                 : AccountType.BANK;
-        
+
         Account account = accountRepository.findByUserEmailAndType(principal.getName(), accountType)
                 .orElseThrow(() -> new BusinessException("Conta não encontrada para o método de pagamento: " + request.getRefundPaymentMethod()));
 

@@ -25,7 +25,7 @@ import java.util.stream.Collectors;
 
 /**
  * Use Case: Get sale history with filters
- * 
+ *
  * Responsibilities:
  * - Fetch sales for given period (year/month or all)
  * - Eagerly load items, variants and products to avoid N+1
@@ -81,14 +81,23 @@ public class GetSaleHistoryUseCase {
     }
 
     private List<Sale> fetchSales(Inventory inventory, Integer year, Integer month) {
+        List<Sale> sales;
+
         if (year != null && month != null) {
             // Fetch sales for specific month
             LocalDateTime startDate = LocalDateTime.of(year, month, 1, 0, 0, 0);
             LocalDateTime endDate = startDate.plusMonths(1);
-            return saleRepository.findByInventoryAndDateRange(inventory, startDate, endDate);
+            sales = saleRepository.findByInventoryAndDateRange(inventory, startDate, endDate);
         } else {
             // Fetch all sales
-            return saleRepository.findAllByInventoryWithProductVariantsAndProducts(inventory);
+            sales = saleRepository.findAllByInventoryWithProductVariantsAndProducts(inventory);
         }
+
+        // Fetch payments in batch to avoid N+1 (cannot use single query due to MultipleBagFetchException)
+        if (!sales.isEmpty()) {
+            saleRepository.loadPaymentsForSales(sales);
+        }
+
+        return sales;
     }
 }

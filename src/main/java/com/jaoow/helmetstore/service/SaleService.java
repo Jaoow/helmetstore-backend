@@ -20,7 +20,7 @@ import java.util.List;
 
 /**
  * Sale Service - Orchestrates sale-related operations using use cases
- * 
+ *
  * This service acts as a facade, delegating business logic to specific use cases.
  * Each use case encapsulates a single business operation with clear responsibilities.
  */
@@ -31,7 +31,7 @@ public class SaleService {
     private final SaleRepository saleRepository;
     private final InventoryHelper inventoryHelper;
     private final ModelMapper modelMapper;
-    
+
     // Use Cases
     private final CreateSaleUseCase createSaleUseCase;
     private final UpdateSaleUseCase updateSaleUseCase;
@@ -158,6 +158,8 @@ public class SaleService {
                 .unitProfit(saleItem.getUnitProfit())
                 .totalItemPrice(saleItem.getTotalItemPrice())
                 .totalItemProfit(saleItem.getTotalItemProfit())
+                .isCancelled(saleItem.getIsCancelled())
+                .cancelledQuantity(saleItem.getCancelledQuantity())
                 .build();
     }
 }
