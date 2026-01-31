@@ -59,6 +59,13 @@ public class SaleCancellationRequestDTO {
      */
     private PaymentMethod refundPaymentMethod;
 
+    /**
+     * Indica se este cancelamento faz parte de uma troca
+     * Se true, a venda será marcada como EXCHANGED ao invés de CANCELLED
+     */
+    @Builder.Default
+    private Boolean isPartOfExchange = false;
+
     @Getter
     @Setter
     @NoArgsConstructor

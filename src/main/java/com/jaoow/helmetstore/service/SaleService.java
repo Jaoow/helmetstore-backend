@@ -39,6 +39,7 @@ public class SaleService {
     private final GetSaleHistoryUseCase getSaleHistoryUseCase;
     private final GenerateSaleReceiptUseCase generateSaleReceiptUseCase;
     private final CancelSaleUseCase cancelSaleUseCase;
+    private final ExchangeProductUseCase exchangeProductUseCase;
 
     @Transactional(readOnly = true)
     public Page<SaleResponseDTO> findAll(Pageable pageable, Principal principal) {
@@ -69,6 +70,10 @@ public class SaleService {
 
     public SaleCancellationResponseDTO cancelSale(Long saleId, SaleCancellationRequestDTO request, Principal principal) {
         return cancelSaleUseCase.execute(saleId, request, principal);
+    }
+
+    public ProductExchangeResponseDTO exchangeProducts(ProductExchangeRequestDTO request, Principal principal) {
+        return exchangeProductUseCase.execute(request, principal);
     }
 
     /**

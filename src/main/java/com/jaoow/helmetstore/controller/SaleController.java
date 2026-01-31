@@ -83,15 +83,25 @@ public class SaleController {
         return saleService.cancelSale(id, request, principal);
     }
 
+    /**
+     * Exchange products from a sale (creates a new sale and handles refunds/additional charges)
+     */
+    @PostMapping("/exchange")
+    public ProductExchangeResponseDTO exchangeProducts(
+            @RequestBody @Valid ProductExchangeRequestDTO request,
+            Principal principal) {
+        return saleService.exchangeProducts(request, principal);
+    }
+
     @GetMapping("/{id}/receipt")
     public ResponseEntity<byte[]> downloadReceipt(@PathVariable Long id, Principal principal) {
         byte[] pdfContent = saleService.generateReceipt(id, principal);
-        
+
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_PDF);
         headers.setContentDispositionFormData("attachment", "recibo-venda-" + id + ".pdf");
         headers.setContentLength(pdfContent.length);
-        
+
         return ResponseEntity.ok()
                 .headers(headers)
                 .body(pdfContent);

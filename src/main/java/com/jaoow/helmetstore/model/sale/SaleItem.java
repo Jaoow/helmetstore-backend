@@ -49,37 +49,20 @@ public class SaleItem {
     private BigDecimal totalItemProfit;
 
     /**
-     * Snapshot of the product's average cost at the exact moment this sale occurred.
-     * <p>
-     * Critical for historical accuracy: If we buy expensive stock tomorrow, it should
-     * NOT retroactively change the profit calculation of items sold today.
-     * <p>
-     * This field freezes the cost basis, enabling accurate Cost of Goods Sold (COGS)
-     * tracking in the double-entry ledger system.
-     * <p>
-     * Calculation: costBasisAtSale = inventoryItem.averageCost (at moment of sale)
-     * <p>
-     * Example:
-     * - Today: averageCost = $100, we sell 1 unit for $150 → costBasisAtSale = $100
-     * - Tomorrow: We buy stock at $200/unit, averageCost becomes $150
-     * - Result: Today's sale still shows $50 profit (not retroactively reduced)
+     * Product average cost at time of sale (COGS snapshot).
      */
     @Column(name = "cost_basis_at_sale", precision = 10, scale = 2)
     private BigDecimal costBasisAtSale;
 
-    // ============================================================================
-    // CANCELLATION FIELDS (for partial cancellations)
-    // ============================================================================
-
     /**
-     * Flag indicando se este item foi cancelado
+     * Flag indicating if the item has been cancelled.
      */
     @Column(name = "is_cancelled", nullable = false)
     @Builder.Default
     private Boolean isCancelled = false;
 
     /**
-     * Quantidade cancelada (para cancelamentos parciais de itens)
+     * Cancelled quantity (for partial item cancellations).
      */
     @Column(name = "cancelled_quantity")
     private Integer cancelledQuantity;

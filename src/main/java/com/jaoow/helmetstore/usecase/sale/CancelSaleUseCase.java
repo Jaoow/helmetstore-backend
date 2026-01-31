@@ -241,15 +241,18 @@ public class CancelSaleUseCase {
         sale.setCancellationNotes(request.getNotes());
 
         if (request.getCancelEntireSale()) {
-            sale.setStatus(SaleStatus.CANCELLED);
+            // Use EXCHANGED status if this is part of an exchange, otherwise CANCELLED
+            sale.setStatus(request.getIsPartOfExchange() ? SaleStatus.EXCHANGED : SaleStatus.CANCELLED);
             // Mark all items as cancelled
             for (SaleItem item : sale.getItems()) {
                 item.setIsCancelled(true);
                 item.setCancelledQuantity(item.getQuantity());
             }
-            // Zero out totals for fully cancelled sale
-            sale.setTotalAmount(BigDecimal.ZERO);
-            sale.setTotalProfit(BigDecimal.ZERO);
+            // Zero out totals for fully cancelled sale (but not for exchanges)
+            if (!request.getIsPartOfExchange()) {
+                sale.setTotalAmount(BigDecimal.ZERO);
+                sale.setTotalProfit(BigDecimal.ZERO);
+            }
         } else {
             // Check if all items are now cancelled
             boolean allItemsCancelled = sale.getItems().stream()
@@ -257,9 +260,11 @@ public class CancelSaleUseCase {
                              (item.getCancelledQuantity() != null && item.getCancelledQuantity().equals(item.getQuantity())));
 
             if (allItemsCancelled) {
-                sale.setStatus(SaleStatus.CANCELLED);
-                sale.setTotalAmount(BigDecimal.ZERO);
-                sale.setTotalProfit(BigDecimal.ZERO);
+                sale.setStatus(request.getIsPartOfExchange() ? SaleStatus.EXCHANGED : SaleStatus.CANCELLED);
+                if (!request.getIsPartOfExchange()) {
+                    sale.setTotalAmount(BigDecimal.ZERO);
+                    sale.setTotalProfit(BigDecimal.ZERO);
+                }
             } else {
                 sale.setStatus(SaleStatus.PARTIALLY_CANCELLED);
                 // Recalculate totals based on remaining (non-cancelled) items
@@ -285,9 +290,9 @@ public class CancelSaleUseCase {
                 BigDecimal itemAmount = item.getUnitPrice().multiply(BigDecimal.valueOf(remainingQuantity));
                 newTotalAmount = newTotalAmount.add(itemAmount);
 
-                // Item profit = (unit price - unit cost) * remaining quantity
+                // Item profit = (unit price - cost basis) * remaining quantity
                 BigDecimal itemProfit = item.getUnitPrice()
-                    .subtract(item.getUnitCost())
+                    .subtract(item.getCostBasisAtSale())
                     .multiply(BigDecimal.valueOf(remainingQuantity));
                 newTotalProfit = newTotalProfit.add(itemProfit);
             }
@@ -298,6 +303,16 @@ public class CancelSaleUseCase {
     }
 
     private Long generateRefundTransaction(Sale sale, SaleCancellationRequestDTO request, Principal principal) {
+        // Check if refund already exists to prevent duplicates
+        String refundReference = "SALE_REFUND#" + sale.getId();
+
+        // Check by reference to avoid duplicates (works for both old and new sales)
+        if (transactionRepository.existsByReference(refundReference)) {
+            return transactionRepository.findByReference(refundReference)
+                    .map(Transaction::getId)
+                    .orElse(null);
+        }
+
         // Find account for refund payment method
         AccountType accountType = (request.getRefundPaymentMethod() == PaymentMethod.CASH)
                 ? AccountType.CASH
@@ -319,7 +334,8 @@ public class CancelSaleUseCase {
                 .description("Estorno de venda #" + sale.getId() + " - " + request.getReason().getDescription())
                 .amount(request.getRefundAmount().negate()) // Negative value (expense)
                 .paymentMethod(request.getRefundPaymentMethod())
-                .reference("SALE_REFUND#" + sale.getId())
+                .reference(refundReference)
+                .referenceSubId(null) // Not used for refunds to avoid conflicts with payment transactions
                 .account(account)
                 // DOUBLE-ENTRY LEDGER FLAGS
                 .affectsProfit(true)   // Refund DOES affect profit (reduces profit)
@@ -345,7 +361,7 @@ public class CancelSaleUseCase {
 
             for (SaleItem item : sale.getItems()) {
                 if (!item.getIsCancelled()) {
-                    BigDecimal itemCost = item.getUnitCost().multiply(BigDecimal.valueOf(item.getQuantity()));
+                    BigDecimal itemCost = item.getCostBasisAtSale().multiply(BigDecimal.valueOf(item.getQuantity()));
                     totalCOGSReversal = totalCOGSReversal.add(itemCost);
                 }
             }
@@ -354,7 +370,7 @@ public class CancelSaleUseCase {
                 Transaction cogsReversalTx = Transaction.builder()
                         .date(LocalDateTime.now())
                         .type(TransactionType.INCOME)
-                        .detail(TransactionDetail.COST_OF_GOODS_SOLD)
+                        .detail(TransactionDetail.COGS_REVERSAL)
                         .description("Reversão COGS - Cancelamento total venda #" + sale.getId())
                         .amount(totalCOGSReversal) // Positive value (reverses the expense)
                         .paymentMethod(PaymentMethod.CASH)
@@ -377,7 +393,7 @@ public class CancelSaleUseCase {
                         .findFirst()
                         .orElseThrow();
 
-                BigDecimal itemCost = item.getUnitCost().multiply(BigDecimal.valueOf(cancellation.getQuantityToCancel()));
+                BigDecimal itemCost = item.getCostBasisAtSale().multiply(BigDecimal.valueOf(cancellation.getQuantityToCancel()));
                 totalCOGSReversal = totalCOGSReversal.add(itemCost);
             }
 
@@ -385,7 +401,7 @@ public class CancelSaleUseCase {
                 Transaction cogsReversalTx = Transaction.builder()
                         .date(LocalDateTime.now())
                         .type(TransactionType.INCOME)
-                        .detail(TransactionDetail.COST_OF_GOODS_SOLD)
+                        .detail(TransactionDetail.COGS_REVERSAL)
                         .description("Reversão COGS - Cancelamento parcial venda #" + sale.getId())
                         .amount(totalCOGSReversal) // Positive value (reverses the expense)
                         .paymentMethod(PaymentMethod.CASH)

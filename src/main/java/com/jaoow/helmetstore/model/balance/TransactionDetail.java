@@ -30,6 +30,9 @@ public enum TransactionDetail {
     /** Custo do produto vendido (CPV) — diminui lucro e caixa */
     COST_OF_GOODS_SOLD(true, true),
 
+    /** Reversão de COGS em trocas/devoluções — restaura lucro */
+    COGS_REVERSAL(true, false),
+
     /** Despesas fixas — diminuem lucro e caixa */
     FIXED_EXPENSE(true, true),
 
