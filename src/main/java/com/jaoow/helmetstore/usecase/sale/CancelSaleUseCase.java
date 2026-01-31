@@ -287,7 +287,7 @@ public class CancelSaleUseCase {
 
                 // Item profit = (unit price - unit cost) * remaining quantity
                 BigDecimal itemProfit = item.getUnitPrice()
-                    .subtract(item.getUnitCost())
+                    .subtract(item.getCostBasisAtSale())
                     .multiply(BigDecimal.valueOf(remainingQuantity));
                 newTotalProfit = newTotalProfit.add(itemProfit);
             }
@@ -345,7 +345,7 @@ public class CancelSaleUseCase {
 
             for (SaleItem item : sale.getItems()) {
                 if (!item.getIsCancelled()) {
-                    BigDecimal itemCost = item.getUnitCost().multiply(BigDecimal.valueOf(item.getQuantity()));
+                    BigDecimal itemCost = item.getCostBasisAtSale().multiply(BigDecimal.valueOf(item.getQuantity()));
                     totalCOGSReversal = totalCOGSReversal.add(itemCost);
                 }
             }
@@ -377,7 +377,7 @@ public class CancelSaleUseCase {
                         .findFirst()
                         .orElseThrow();
 
-                BigDecimal itemCost = item.getUnitCost().multiply(BigDecimal.valueOf(cancellation.getQuantityToCancel()));
+                BigDecimal itemCost = item.getCostBasisAtSale().multiply(BigDecimal.valueOf(cancellation.getQuantityToCancel()));
                 totalCOGSReversal = totalCOGSReversal.add(itemCost);
             }
 
