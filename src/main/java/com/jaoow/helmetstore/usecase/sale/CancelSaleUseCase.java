@@ -322,7 +322,7 @@ public class CancelSaleUseCase {
                 .reference("SALE_REFUND#" + sale.getId())
                 .account(account)
                 // DOUBLE-ENTRY LEDGER FLAGS
-                .affectsProfit(true)   // Refund DOES affect profit (reduces profit)
+                .affectsProfit(false)   // Refund DOES affect profit (reduces profit)
                 .affectsCash(true)     // And reduces cash
                 .walletDestination(walletDest)
                 .build();
