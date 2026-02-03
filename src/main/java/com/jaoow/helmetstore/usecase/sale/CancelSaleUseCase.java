@@ -139,6 +139,11 @@ public class CancelSaleUseCase {
             throw new BusinessException("Para cancelamento parcial, é necessário especificar os itens a cancelar");
         }
 
+        // Partial cancellation not allowed for sales with only one item
+        if (!request.getCancelEntireSale() && sale.getItems().size() == 1) {
+            throw new BusinessException("Não é possível cancelar parcialmente uma venda com apenas um item");
+        }
+
         // Partial cancellation requires refund (business rule)
         if (!request.getCancelEntireSale() && !request.getGenerateRefund()) {
             throw new BusinessException("Cancelamento parcial exige estorno do valor proporcional");
