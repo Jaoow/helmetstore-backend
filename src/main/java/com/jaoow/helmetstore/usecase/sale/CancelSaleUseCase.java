@@ -36,6 +36,15 @@ import java.util.List;
  * - Reverse inventory (return stock)
  * - Generate refund transaction if needed
  * - Record cancellation metadata
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * ⚠️ RULE OF GOLD:
+ * - Sale is HISTORICAL (never rewrite profit history)
+ * - Transaction is FINANCIAL TRUTH (source of accounting)
+ * - Exchange NEVER rewrites profit history
+ * - CancelSaleUseCase just EXECUTES - it doesn't decide "impact"
+ * - COGS_REVERSAL is handled by ExchangeProductUseCase ONLY
+ * ═══════════════════════════════════════════════════════════════════════════
  */
 @Component
 @RequiredArgsConstructor
@@ -84,6 +93,7 @@ public class CancelSaleUseCase {
         updateSaleStatus(sale, request, principal);
 
         // 6. Generate refund transaction if needed
+        // ⚠️ RULE: CancelSaleUseCase just executes what it's told - no "decision making"
         Long refundTransactionId = null;
         if (request.getGenerateRefund()) {
             validateRefund(sale, request, totalPaid);
@@ -100,8 +110,12 @@ public class CancelSaleUseCase {
             sale.setRefundPaymentMethod(request.getRefundPaymentMethod());
             sale.setRefundTransactionId(refundTransactionId);
 
-            // Reverse COGS to restore profit calculation in double ledger
-            reverseCOGSTransactions(sale, request, principal);
+            // ⚠️ CRITICAL: Reverse COGS for cancelled items to restore profit calculation
+            // This is ONLY done for real cancellations with financial impact.
+            // Exchange-related cancellations handle COGS reversal separately in ExchangeProductUseCase.
+            if (!Boolean.TRUE.equals(request.getIsPartOfExchange())) {
+                reverseCOGSTransactions(sale, request, principal);
+            }
         }
 
         // 7. Save sale
@@ -129,6 +143,11 @@ public class CancelSaleUseCase {
             throw new BusinessException("Não é possível cancelar uma venda já totalmente cancelada");
         }
 
+        // Cannot cancel an already exchanged sale (unless this is part of the exchange process)
+        if (sale.getStatus() == SaleStatus.EXCHANGED && !Boolean.TRUE.equals(request.getIsPartOfExchange())) {
+            throw new BusinessException("Não é possível cancelar uma venda que já foi trocada. Use o histórico de trocas para mais informações.");
+        }
+
         // Validate payment exists when refund is requested
         if (request.getGenerateRefund() && (sale.getPayments() == null || sale.getPayments().isEmpty())) {
             throw new BusinessException("Não é possível gerar estorno para venda sem pagamento");
@@ -139,8 +158,8 @@ public class CancelSaleUseCase {
             throw new BusinessException("Para cancelamento parcial, é necessário especificar os itens a cancelar");
         }
 
-        // Partial cancellation requires refund (business rule)
-        if (!request.getCancelEntireSale() && !request.getGenerateRefund()) {
+        // Partial cancellation requires refund (business rule) UNLESS it's part of an exchange
+        if (!request.getCancelEntireSale() && !request.getGenerateRefund() && !Boolean.TRUE.equals(request.getIsPartOfExchange())) {
             throw new BusinessException("Cancelamento parcial exige estorno do valor proporcional");
         }
 
@@ -248,8 +267,10 @@ public class CancelSaleUseCase {
                 item.setIsCancelled(true);
                 item.setCancelledQuantity(item.getQuantity());
             }
-            // Zero out totals for fully cancelled sale (but not for exchanges)
-            if (!request.getIsPartOfExchange()) {
+            // Zero out totals for fully cancelled sale (but NOT for exchanges)
+            // ⚠️ CRITICAL: In exchanges, original sale keeps its profit history
+            // The financial adjustment happens separately through explicit transactions
+            if (!Boolean.TRUE.equals(request.getIsPartOfExchange())) {
                 sale.setTotalAmount(BigDecimal.ZERO);
                 sale.setTotalProfit(BigDecimal.ZERO);
             }
@@ -261,14 +282,22 @@ public class CancelSaleUseCase {
 
             if (allItemsCancelled) {
                 sale.setStatus(request.getIsPartOfExchange() ? SaleStatus.EXCHANGED : SaleStatus.CANCELLED);
-                if (!request.getIsPartOfExchange()) {
+                // Same rule: don't zero profit for exchanges
+                if (!Boolean.TRUE.equals(request.getIsPartOfExchange())) {
                     sale.setTotalAmount(BigDecimal.ZERO);
                     sale.setTotalProfit(BigDecimal.ZERO);
                 }
             } else {
-                sale.setStatus(SaleStatus.PARTIALLY_CANCELLED);
-                // Recalculate totals based on remaining (non-cancelled) items
-                recalculateSaleTotals(sale);
+                // ⚠️ CRITICAL: In exchanges, always use EXCHANGED status (even partial)
+                // In exchanges, profit/amount are IMMUTABLE - never recalculate
+                if (Boolean.TRUE.equals(request.getIsPartOfExchange())) {
+                    sale.setStatus(SaleStatus.EXCHANGED);
+                    // DO NOT recalculate totals - they remain historical
+                } else {
+                    sale.setStatus(SaleStatus.PARTIALLY_CANCELLED);
+                    // Only recalculate for true partial cancellations
+                    recalculateSaleTotals(sale);
+                }
             }
         }
     }
@@ -327,17 +356,18 @@ public class CancelSaleUseCase {
                 : AccountType.BANK;
 
         // Create refund transaction (EXPENSE - money going out)
+        // Uses SALE_REFUND which correctly affects both profit and cash
         Transaction refundTransaction = Transaction.builder()
                 .date(LocalDateTime.now())
                 .type(TransactionType.EXPENSE)
-                .detail(TransactionDetail.REFUND)
+                .detail(TransactionDetail.SALE_REFUND)
                 .description("Estorno de venda #" + sale.getId() + " - " + request.getReason().getDescription())
                 .amount(request.getRefundAmount().negate()) // Negative value (expense)
                 .paymentMethod(request.getRefundPaymentMethod())
                 .reference(refundReference)
                 .referenceSubId(null) // Not used for refunds to avoid conflicts with payment transactions
                 .account(account)
-                // DOUBLE-ENTRY LEDGER FLAGS
+                // DOUBLE-ENTRY LEDGER FLAGS (inherited from TransactionDetail.SALE_REFUND)
                 .affectsProfit(true)   // Refund DOES affect profit (reduces profit)
                 .affectsCash(true)     // And reduces cash
                 .walletDestination(walletDest)
@@ -348,72 +378,78 @@ public class CancelSaleUseCase {
     }
 
     /**
-     * Reverses COGS (Cost of Goods Sold) transactions for cancelled items
-     * This restores the cost to profit since the product returned to inventory
+     * Reverses COGS (Cost of Goods Sold) transactions for cancelled items.
+     * This restores the cost to profit since the product returned to inventory.
+     *
+     * ⚠️ CRITICAL ACCOUNTING RULE:
+     * - COGS was recorded when the sale was made (reducing profit)
+     * - When a sale is cancelled, we must reverse this COGS
+     * - This creates a positive transaction that increases profit back
+     * - Without this, cancelled sales would show incorrect negative profit
+     *
+     * @param sale The sale being cancelled
+     * @param request The cancellation request with items to cancel
+     * @param principal The authenticated user
      */
     private void reverseCOGSTransactions(Sale sale, SaleCancellationRequestDTO request, Principal principal) {
         Account systemAccount = accountRepository.findByUserEmailAndType(principal.getName(), AccountType.CASH)
                 .orElseThrow(() -> new BusinessException("Conta não encontrada"));
 
-        if (request.getCancelEntireSale()) {
-            // Reverse COGS for all items
-            BigDecimal totalCOGSReversal = BigDecimal.ZERO;
+        BigDecimal totalCOGSReversal = BigDecimal.ZERO;
+        String referencePrefix = "SALE_CANCEL_COGS#";
 
+        // Check if COGS reversal already exists to prevent duplicates
+        String cogsReference = referencePrefix + sale.getId();
+        if (transactionRepository.existsByReference(cogsReference)) {
+            return; // Already reversed
+        }
+
+        if (request.getCancelEntireSale()) {
+            // Reverse COGS for all non-cancelled items
             for (SaleItem item : sale.getItems()) {
-                if (!item.getIsCancelled()) {
-                    BigDecimal itemCost = item.getCostBasisAtSale().multiply(BigDecimal.valueOf(item.getQuantity()));
+                if (!item.getIsCancelled() && item.getCostBasisAtSale() != null) {
+                    BigDecimal itemCost = item.getCostBasisAtSale()
+                            .multiply(BigDecimal.valueOf(item.getQuantity()));
                     totalCOGSReversal = totalCOGSReversal.add(itemCost);
                 }
             }
-
-            if (totalCOGSReversal.compareTo(BigDecimal.ZERO) > 0) {
-                Transaction cogsReversalTx = Transaction.builder()
-                        .date(LocalDateTime.now())
-                        .type(TransactionType.INCOME)
-                        .detail(TransactionDetail.COGS_REVERSAL)
-                        .description("Reversão COGS - Cancelamento total venda #" + sale.getId())
-                        .amount(totalCOGSReversal) // Positive value (reverses the expense)
-                        .paymentMethod(PaymentMethod.CASH)
-                        .reference("SALE_CANCEL#" + sale.getId())
-                        .account(systemAccount)
-                        .affectsProfit(true)  // Reversal increases profit back
-                        .affectsCash(false)   // No cash impact (accounting only)
-                        .walletDestination(null)
-                        .build();
-
-                transactionRepository.save(cogsReversalTx);
-            }
         } else {
-            // Reverse COGS only for cancelled items
-            BigDecimal totalCOGSReversal = BigDecimal.ZERO;
-
+            // Reverse COGS only for specifically cancelled items
             for (var cancellation : request.getItemsToCancel()) {
                 SaleItem item = sale.getItems().stream()
                         .filter(si -> si.getId().equals(cancellation.getItemId()))
                         .findFirst()
-                        .orElseThrow();
+                        .orElseThrow(() -> new BusinessException("Item não encontrado: " + cancellation.getItemId()));
 
-                BigDecimal itemCost = item.getCostBasisAtSale().multiply(BigDecimal.valueOf(cancellation.getQuantityToCancel()));
-                totalCOGSReversal = totalCOGSReversal.add(itemCost);
-            }
-
-            if (totalCOGSReversal.compareTo(BigDecimal.ZERO) > 0) {
-                Transaction cogsReversalTx = Transaction.builder()
-                        .date(LocalDateTime.now())
-                        .type(TransactionType.INCOME)
-                        .detail(TransactionDetail.COGS_REVERSAL)
-                        .description("Reversão COGS - Cancelamento parcial venda #" + sale.getId())
-                        .amount(totalCOGSReversal) // Positive value (reverses the expense)
-                        .paymentMethod(PaymentMethod.CASH)
-                        .reference("SALE_CANCEL#" + sale.getId())
-                        .account(systemAccount)
-                        .affectsProfit(true)  // Reversal increases profit back
-                        .affectsCash(false)   // No cash impact (accounting only)
-                        .walletDestination(null)
-                        .build();
-
-                transactionRepository.save(cogsReversalTx);
+                if (item.getCostBasisAtSale() != null) {
+                    BigDecimal itemCost = item.getCostBasisAtSale()
+                            .multiply(BigDecimal.valueOf(cancellation.getQuantityToCancel()));
+                    totalCOGSReversal = totalCOGSReversal.add(itemCost);
+                }
             }
         }
+
+        if (totalCOGSReversal.compareTo(BigDecimal.ZERO) > 0) {
+            Transaction cogsReversalTx = Transaction.builder()
+                    .date(LocalDateTime.now())
+                    .type(TransactionType.INCOME)
+                    .detail(TransactionDetail.COGS_REVERSAL)
+                    .description("Reversão COGS - Cancelamento " +
+                            (request.getCancelEntireSale() ? "total" : "parcial") +
+                            " venda #" + sale.getId())
+                    .amount(totalCOGSReversal) // Positive value (reverses the expense)
+                    .paymentMethod(PaymentMethod.CASH) // Placeholder (COGS doesn't involve cash movement)
+                    .reference(cogsReference)
+                    .referenceSubId(null)
+                    .account(systemAccount)
+                    // DOUBLE-ENTRY LEDGER FLAGS (inherited from TransactionDetail.COGS_REVERSAL)
+                    .affectsProfit(true)  // Reversal increases profit back
+                    .affectsCash(false)   // No cash impact (accounting only)
+                    .walletDestination(null)
+                    .build();
+
+            transactionRepository.save(cogsReversalTx);
+        }
     }
+
 }

@@ -11,14 +11,19 @@ import com.jaoow.helmetstore.exception.BusinessException;
 import com.jaoow.helmetstore.exception.ResourceNotFoundException;
 import com.jaoow.helmetstore.helper.InventoryHelper;
 import com.jaoow.helmetstore.model.ProductExchange;
+import com.jaoow.helmetstore.model.ProductVariant;
 import com.jaoow.helmetstore.model.Sale;
 import com.jaoow.helmetstore.model.balance.*;
 import com.jaoow.helmetstore.model.inventory.Inventory;
+import com.jaoow.helmetstore.model.inventory.InventoryItem;
 import com.jaoow.helmetstore.model.sale.CancellationReason;
 import com.jaoow.helmetstore.model.sale.SaleItem;
 import com.jaoow.helmetstore.model.sale.SaleStatus;
 import com.jaoow.helmetstore.repository.AccountRepository;
+import com.jaoow.helmetstore.repository.InventoryItemRepository;
+import com.jaoow.helmetstore.repository.InventoryRepository;
 import com.jaoow.helmetstore.repository.ProductExchangeRepository;
+import com.jaoow.helmetstore.repository.ProductVariantRepository;
 import com.jaoow.helmetstore.repository.SaleRepository;
 import com.jaoow.helmetstore.repository.TransactionRepository;
 import lombok.RequiredArgsConstructor;
@@ -38,11 +43,21 @@ import java.util.List;
  *
  * This use case handles the complete product exchange flow:
  * 1. Validates the original sale and items to return
- * 2. Cancels the returned items (partial cancellation)
- * 3. Calculates financial differences
- * 4. Issues refund if new sale is cheaper (or equal)
- * 5. Creates new sale with exchanged products
+ * 2. Cancels the returned items (OPERATIONAL cancellation)
+ * 3. Reverses COGS explicitly (restores cost)
+ * 4. Creates derived sale (NO transactions)
+ * 5. Creates financial adjustment (ONLY the difference)
  * 6. Records the exchange transaction for traceability
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * ⚠️ RULE OF GOLD:
+ * - Exchange is NOT a financial event
+ * - Exchange is an ACCOUNTING REAPPOINTMENT
+ * - ONLY the difference is a financial event
+ * - Original sale keeps profit history (IMMUTABLE)
+ * - Transaction is source of truth
+ * - Sale is operational aggregator
+ * ═══════════════════════════════════════════════════════════════════════════
  *
  * Key principles:
  * - Original sale is NEVER edited, only marked with cancellations
@@ -62,6 +77,9 @@ public class ExchangeProductUseCase {
     private final InventoryHelper inventoryHelper;
     private final TransactionRepository transactionRepository;
     private final AccountRepository accountRepository;
+    private final InventoryRepository inventoryRepository;
+    private final InventoryItemRepository inventoryItemRepository;
+    private final ProductVariantRepository productVariantRepository;
 
     @Caching(evict = {
             @CacheEvict(value = CacheNames.PRODUCT_INDICATORS, allEntries = true),
@@ -107,11 +125,15 @@ public class ExchangeProductUseCase {
         validateRefundPaymentMethod(request, amountDifference);
 
         // ========================================================================
-        // STEP 5: Cancel returned items from original sale (partial cancellation)
+        // STEP 4b: Validate stock availability for new items BEFORE any changes
+        // ⚠️ CRITICAL: Must validate stock before processing returns to ensure
+        // atomicity - if stock is insufficient, no changes should be made
         // ========================================================================
-        Long refundTransactionId = null;
-        PaymentMethod refundPaymentMethod = null;
+        validateNewItemsStockAvailability(request.getNewItems(), inventory);
 
+        // ========================================================================
+        // STEP 5: Cancel returned items from original sale (OPERATIONAL ONLY)
+        // ========================================================================
         SaleCancellationRequestDTO cancellationRequest = buildCancellationRequest(
                 request,
                 returnedAmount,
@@ -125,14 +147,39 @@ public class ExchangeProductUseCase {
                 principal
         );
 
-        // Capture refund details if refund was issued
-        if (cancellationResponse.getHasRefund()) {
-            refundTransactionId = cancellationResponse.getRefundTransactionId();
-            refundPaymentMethod = cancellationResponse.getRefundPaymentMethod();
+        // ========================================================================
+        // STEP 6: Explicitly reverse COGS for returned items (using REQUEST data)
+        // ⚠️ CRITICAL: Uses explicit request data, NOT entity state
+        // This prevents ambiguity and ensures correct COGS calculation
+        // ========================================================================
+        reverseCOGSForReturnedItems(request, originalSale, principal);
+
+        // ========================================================================
+        // STEP 6b: Create COGS for new products
+        // ⚠️ CRITICAL: New products must have their COGS recorded
+        // Since isDerivedFromExchange=true skips all transactions in CreateSaleUseCase,
+        // we must explicitly create COGS transactions here
+        // ========================================================================
+        createCOGSForNewItems(request, originalSale, principal);
+
+        // ========================================================================
+        // STEP 7: Create financial adjustment transaction (ONLY THE DIFFERENCE)
+        // This is the ONLY financial impact of the exchange
+        // ========================================================================
+        Long financialAdjustmentTransactionId = null;
+
+        if (amountDifference.compareTo(BigDecimal.ZERO) != 0) {
+            financialAdjustmentTransactionId = createFinancialAdjustmentTransaction(
+                    amountDifference,
+                    request,
+                    originalSale,
+                    exchangeDate,
+                    principal
+            );
         }
 
         // ========================================================================
-        // STEP 6: Create new sale with exchanged products
+        // STEP 8: Create new sale with exchanged products (NO FINANCIAL TRANSACTIONS)
         // ========================================================================
         SaleCreateDTO newSaleDTO = buildNewSaleDTO(request, exchangeDate, returnedAmount, amountDifference);
         var newSaleResponse = createSaleUseCase.execute(newSaleDTO, principal);
@@ -142,7 +189,7 @@ public class ExchangeProductUseCase {
                 .orElseThrow(() -> new ResourceNotFoundException("Nova venda não encontrada após criação"));
 
         // ========================================================================
-        // STEP 7: Record the exchange transaction
+        // STEP 9: Record the exchange transaction
         // ========================================================================
         ProductExchange exchange = ProductExchange.builder()
                 .exchangeDate(exchangeDate)
@@ -155,14 +202,14 @@ public class ExchangeProductUseCase {
                 .newSaleAmount(newSaleAmount)
                 .amountDifference(amountDifference)
                 .refundAmount(amountDifference.compareTo(BigDecimal.ZERO) < 0 ? amountDifference.abs() : null)
-                .refundPaymentMethod(refundPaymentMethod)
-                .refundTransactionId(refundTransactionId)
+                .refundPaymentMethod(amountDifference.compareTo(BigDecimal.ZERO) < 0 ? request.getRefundPaymentMethod() : null)
+                .refundTransactionId(financialAdjustmentTransactionId)
                 .build();
 
         ProductExchange savedExchange = productExchangeRepository.save(exchange);
 
         // ========================================================================
-        // STEP 8: Build and return response
+        // STEP 10: Build and return response
         // ========================================================================
         return buildResponse(savedExchange);
     }
@@ -255,6 +302,36 @@ public class ExchangeProductUseCase {
     }
 
     /**
+     * Validates stock availability for all new items BEFORE any changes are made.
+     * This ensures atomicity - if any item has insufficient stock, the entire
+     * exchange operation is aborted without making any partial changes.
+     */
+    private void validateNewItemsStockAvailability(
+            List<ProductExchangeRequestDTO.NewItemDTO> newItems,
+            Inventory inventory
+    ) {
+        for (ProductExchangeRequestDTO.NewItemDTO item : newItems) {
+            ProductVariant variant = productVariantRepository.findById(item.getVariantId())
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Variante de produto não encontrada: " + item.getVariantId()));
+
+            InventoryItem inventoryItem = inventoryItemRepository
+                    .findByInventoryAndProductVariant(inventory, variant)
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Produto não encontrado no inventário: " + variant.getSku()));
+
+            if (inventoryItem.getQuantity() < item.getQuantity()) {
+                throw new BusinessException(String.format(
+                        "Estoque insuficiente para o produto %s. Disponível: %d, Solicitado: %d",
+                        variant.getSku(),
+                        inventoryItem.getQuantity(),
+                        item.getQuantity()
+                ));
+            }
+        }
+    }
+
+    /**
      * Builds the cancellation request for the original sale
      */
     private SaleCancellationRequestDTO buildCancellationRequest(
@@ -295,6 +372,7 @@ public class ExchangeProductUseCase {
                 .refundAmount(refundAmount)
                 .refundPaymentMethod(refundMethod)
                 .isPartOfExchange(true) // Mark as part of exchange
+                .hasFinancialImpact(shouldGenerateRefund) // Only has financial impact if there's actual refund
                 .build();
     }
 
@@ -335,9 +413,16 @@ public class ExchangeProductUseCase {
      * Builds the new sale DTO
      *
      * Payment logic for exchanges:
-     * - Same value: No payments needed (COGS already reversed, no money in/out)
-     * - More expensive: Only charge the difference (new sale payment)
-     * - Cheaper: Refund handled by CancelSaleUseCase, no payment for new sale
+     * - A nova venda registra apenas o VALOR PAGO pelo cliente (diferença)
+     * - Preços dos itens são ajustados proporcionalmente para refletir apenas o pagamento
+     * - Marcada como isDerivedFromExchange = true, portanto NÃO gera transações financeiras
+     * - As transações originais são mantidas (reapontamento contábil)
+     *
+     * Exemplo:
+     * - Produto devolvido: R$ 100
+     * - Produto novo: R$ 160
+     * - Diferença: R$ 60 (cliente paga)
+     * - Venda registrada com totalAmount = R$ 60 (mesmo que produto valha R$ 160)
      */
     private SaleCreateDTO buildNewSaleDTO(
             ProductExchangeRequestDTO request,
@@ -345,38 +430,257 @@ public class ExchangeProductUseCase {
             BigDecimal returnedAmount,
             BigDecimal amountDifference
     ) {
-        // Use REAL prices for items (no adjustment)
+        // Use ORIGINAL prices for sale items
+        // The isDerivedFromExchange flag ensures no duplicate financial transactions
+        // Price adjustment is handled via the separate financial adjustment transaction
         List<SaleItemCreateDTO> saleItems = request.getNewItems().stream()
                 .map(item -> SaleItemCreateDTO.builder()
                         .variantId(item.getVariantId())
                         .quantity(item.getQuantity())
-                        .unitPrice(item.getUnitPrice())
+                        .unitPrice(item.getUnitPrice()) // Keep original price for proper records
                         .build())
                 .toList();
 
-        // Payment logic:
-        // - If amountDifference > 0 (more expensive): customer pays the difference
-        // - If amountDifference <= 0 (same or cheaper): no payment (refund handled separately)
+        // Calculate the total value of the new sale
+        BigDecimal newSaleTotal = calculateNewSaleAmount(request.getNewItems());
+
+        // Build payments list:
+        // The sale total must be covered by:
+        // 1. Credit from returned product (returnedAmount) - treated as CASH credit
+        // 2. Additional customer payment (amountDifference, if positive)
         List<SalePaymentCreateDTO> payments = new ArrayList<>();
 
+        // First, add the credit from the returned product
+        if (returnedAmount.compareTo(BigDecimal.ZERO) > 0) {
+            // Cap the credit at the new sale total (in case returned > new sale)
+            BigDecimal creditAmount = returnedAmount.min(newSaleTotal);
+            payments.add(SalePaymentCreateDTO.builder()
+                    .paymentMethod(PaymentMethod.CASH) // Credit applied as CASH
+                    .amount(creditAmount)
+                    .build());
+        }
+
+        // Then, add customer's additional payment if needed
         if (amountDifference.compareTo(BigDecimal.ZERO) > 0) {
-            // Customer needs to pay additional amount
-            if (request.getNewSalePayments() != null) {
+            if (request.getNewSalePayments() != null && !request.getNewSalePayments().isEmpty()) {
                 payments.addAll(request.getNewSalePayments());
+            } else {
+                // Default payment if none provided
+                payments.add(SalePaymentCreateDTO.builder()
+                        .paymentMethod(PaymentMethod.CASH)
+                        .amount(amountDifference)
+                        .build());
             }
         }
-        // No payments for same value or cheaper exchanges
 
         return SaleCreateDTO.builder()
                 .date(exchangeDate)
                 .items(saleItems)
                 .payments(payments)
+                .isDerivedFromExchange(true) // CRITICAL: Prevents duplicate transactions
                 .build();
     }
 
     /**
      * Builds the response DTO
      */
+    /**
+     * Reverses COGS for returned items in exchange
+     *
+     * ⚠️ CRITICAL: Uses EXPLICIT request data (itemsToReturn), NOT entity state
+     * This prevents ambiguity caused by mutable entity state and ensures correct calculation
+     *
+     * @param request The exchange request with explicit items to return
+     * @param originalSale The original sale
+     * @param principal The authenticated user
+     */
+    private void reverseCOGSForReturnedItems(
+            ProductExchangeRequestDTO request,
+            Sale originalSale,
+            Principal principal
+    ) {
+        Account systemAccount = accountRepository.findByUserEmailAndType(principal.getName(), AccountType.CASH)
+                .orElseThrow(() -> new BusinessException("Conta não encontrada"));
+
+        BigDecimal totalCOGSReversal = BigDecimal.ZERO;
+
+        // ⚠️ Use EXPLICIT request data, not entity state
+        for (var itemToReturn : request.getItemsToReturn()) {
+            SaleItem saleItem = originalSale.getItems().stream()
+                    .filter(si -> si.getId().equals(itemToReturn.getSaleItemId()))
+                    .findFirst()
+                    .orElseThrow(() -> new BusinessException("Item não encontrado: " + itemToReturn.getSaleItemId()));
+
+            // Use explicit quantity from REQUEST, not entity state
+            BigDecimal itemCost = saleItem.getCostBasisAtSale()
+                    .multiply(BigDecimal.valueOf(itemToReturn.getQuantityToReturn()));
+            totalCOGSReversal = totalCOGSReversal.add(itemCost);
+        }
+
+        if (totalCOGSReversal.compareTo(BigDecimal.ZERO) > 0) {
+            Transaction cogsReversalTx = Transaction.builder()
+                    .date(LocalDateTime.now())
+                    .type(TransactionType.INCOME)
+                    .detail(TransactionDetail.COGS_REVERSAL)
+                    .description(String.format("Reversão COGS - Troca venda #%d", originalSale.getId()))
+                    .amount(totalCOGSReversal) // Positive value (reverses the expense)
+                    .paymentMethod(PaymentMethod.CASH)
+                    .reference("EXCHANGE_COGS#" + originalSale.getId())
+                    .referenceSubId(null)
+                    .account(systemAccount)
+                    .affectsProfit(true)  // Reversal increases profit back
+                    .affectsCash(false)   // No cash impact (accounting only)
+                    .walletDestination(null)
+                    .build();
+
+            transactionRepository.save(cogsReversalTx);
+        }
+    }
+
+    /**
+     * Creates COGS transactions for new products in exchange
+     *
+     * ⚠️ CRITICAL: Since isDerivedFromExchange=true causes CreateSaleUseCase to skip
+     * ALL financial transactions (including COGS), we must explicitly create COGS here.
+     * Without this, the new product's cost would never be recorded, breaking profit calculation.
+     *
+     * @param request The exchange request with new items
+     * @param originalSale The original sale (for reference)
+     * @param principal The authenticated user
+     */
+    private void createCOGSForNewItems(
+            ProductExchangeRequestDTO request,
+            Sale originalSale,
+            Principal principal
+    ) {
+        Account systemAccount = accountRepository.findByUserEmailAndType(principal.getName(), AccountType.CASH)
+                .orElseThrow(() -> new BusinessException("Conta não encontrada"));
+
+        Inventory inventory = inventoryRepository.findByUserEmail(principal.getName())
+                .orElseThrow(() -> new BusinessException("Inventário não encontrado"));
+
+        BigDecimal totalCOGS = BigDecimal.ZERO;
+
+        for (var newItem : request.getNewItems()) {
+            ProductVariant variant = productVariantRepository.findById(newItem.getVariantId())
+                    .orElseThrow(() -> new BusinessException("Variante não encontrada: " + newItem.getVariantId()));
+
+            InventoryItem inventoryItem = inventoryItemRepository
+                    .findByInventoryAndProductVariant(inventory, variant)
+                    .orElseThrow(() -> new BusinessException("Item de inventário não encontrado"));
+
+            // Calculate COGS for this item
+            BigDecimal itemCost = inventoryItem.getAverageCost()
+                    .multiply(BigDecimal.valueOf(newItem.getQuantity()));
+            totalCOGS = totalCOGS.add(itemCost);
+        }
+
+        if (totalCOGS.compareTo(BigDecimal.ZERO) > 0) {
+            Transaction cogsTx = Transaction.builder()
+                    .date(LocalDateTime.now())
+                    .type(TransactionType.EXPENSE)
+                    .detail(TransactionDetail.COST_OF_GOODS_SOLD)
+                    .description(String.format("COGS novos produtos - Troca venda #%d", originalSale.getId()))
+                    .amount(totalCOGS.negate()) // Negative value (expense)
+                    .paymentMethod(PaymentMethod.CASH)
+                    .reference("EXCHANGE_COGS_NEW#" + originalSale.getId())
+                    .referenceSubId(null)
+                    .account(systemAccount)
+                    .affectsProfit(true)  // YES: COGS reduces profit
+                    .affectsCash(false)   // No cash impact (accounting only)
+                    .walletDestination(null)
+                    .build();
+
+            transactionRepository.save(cogsTx);
+        }
+    }
+
+    /**
+     * Creates the financial adjustment transaction for the exchange difference
+     *
+     * ⚠️ CRITICAL ACCOUNTING RULE:
+     * This is the ONLY financial impact of an exchange. Exchanges are accounting reappointments,
+     * not new financial events. Only the difference between returned and new items creates
+     * a transaction that affects profit/cash.
+     *
+     * @param amountDifference The difference (positive = additional charge, negative = refund)
+     * @param request The exchange request
+     * @param originalSale The original sale
+     * @param exchangeDate The exchange date
+     * @param principal The authenticated user
+     * @return The ID of the created transaction, or null if no difference
+     */
+    private Long createFinancialAdjustmentTransaction(
+            BigDecimal amountDifference,
+            ProductExchangeRequestDTO request,
+            Sale originalSale,
+            LocalDateTime exchangeDate,
+            Principal principal
+    ) {
+        // Get user's account for wallet destination
+        AccountType walletType = (request.getRefundPaymentMethod() == PaymentMethod.CASH)
+                ? AccountType.CASH
+                : AccountType.BANK;
+
+        Account userAccount = accountRepository.findByUserEmailAndType(principal.getName(), walletType)
+                .orElseThrow(() -> new BusinessException("Conta não encontrada"));
+
+        Transaction transaction;
+
+        if (amountDifference.compareTo(BigDecimal.ZERO) > 0) {
+            // ========================================================================
+            // Customer pays MORE: Create INCOME transaction for additional charge
+            // ========================================================================
+            transaction = Transaction.builder()
+                    .date(exchangeDate)
+                    .amount(amountDifference)  // Positive value (income)
+                    .description(String.format(
+                            "Cobrança adicional na troca - Venda #%d",
+                            originalSale.getId()
+                    ))
+                    .type(TransactionType.INCOME)
+                    .detail(TransactionDetail.SALE)
+                    .paymentMethod(request.getNewSalePayments() != null && !request.getNewSalePayments().isEmpty()
+                            ? request.getNewSalePayments().get(0).getPaymentMethod()
+                            : PaymentMethod.CASH)
+                    .reference("EXCHANGE_CHARGE#" + originalSale.getId())
+                    .referenceSubId(null)
+                    .account(userAccount)
+                    .affectsProfit(true)       // YES: This creates profit
+                    .affectsCash(true)         // YES: Cash increases
+                    .walletDestination(walletType)
+                    .build();
+
+        } else {
+            // ========================================================================
+            // Customer receives REFUND: Create EXPENSE transaction for the difference
+            // ========================================================================
+            BigDecimal refundAmount = amountDifference.abs();
+
+            transaction = Transaction.builder()
+                    .date(exchangeDate)
+                    .amount(refundAmount.negate())  // Negative value (expense)
+                    .description(String.format(
+                            "Reembolso na troca (método: %s) - Venda #%d",
+                            request.getRefundPaymentMethod(),
+                            originalSale.getId()
+                    ))
+                    .type(TransactionType.EXPENSE)
+                    .detail(TransactionDetail.SALE_REFUND)
+                    .paymentMethod(request.getRefundPaymentMethod())
+                    .reference("EXCHANGE_REFUND#" + originalSale.getId())
+                    .referenceSubId(null)
+                    .account(userAccount)
+                    .affectsProfit(true)       // YES: This reduces profit
+                    .affectsCash(true)         // YES: Cash decreases
+                    .walletDestination(walletType)
+                    .build();
+        }
+
+        Transaction savedTransaction = transactionRepository.save(transaction);
+        return savedTransaction.getId();
+    }
+
     private ProductExchangeResponseDTO buildResponse(ProductExchange exchange) {
         BigDecimal amountDiff = exchange.getAmountDifference();
 

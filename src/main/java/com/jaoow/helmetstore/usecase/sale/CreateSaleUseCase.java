@@ -32,7 +32,7 @@ import java.util.stream.Collectors;
 
 /**
  * Use Case: Create a new sale
- * 
+ *
  * Responsibilities:
  * - Validate stock availability for all items
  * - Calculate sale totals (amount and profit)
@@ -41,6 +41,15 @@ import java.util.stream.Collectors;
  * - Create sale record with items and payments
  * - Record financial transactions
  * - Invalidate related caches
+ * 
+ * ═══════════════════════════════════════════════════════════════════════════
+ * ⚠️ RULE OF GOLD:
+ * - Sale is HISTORICAL (never rewrite profit history)
+ * - Transaction is FINANCIAL TRUTH (source of accounting)
+ * - SalePayment is just a RECORD (never generates transactions)
+ * - Exchange-derived sales have ZERO profit (profit comes from difference)
+ * - isDerivedFromExchange prevents duplicate transaction recording
+ * ═══════════════════════════════════════════════════════════════════════════
  */
 @Component
 @RequiredArgsConstructor
@@ -64,7 +73,7 @@ public class CreateSaleUseCase {
     @Transactional
     public SaleResponseDTO execute(SaleCreateDTO dto, Principal principal) {
         Inventory inventory = inventoryHelper.getInventoryFromPrincipal(principal);
-        
+
         // Initialize collections
         List<SaleItem> saleItems = new ArrayList<>();
         BigDecimal totalAmount = BigDecimal.ZERO;
@@ -106,7 +115,17 @@ public class CreateSaleUseCase {
 
         // Set sale totals
         sale.setTotalAmount(totalAmount);
-        sale.setTotalProfit(totalProfit);
+        
+        // ⚠️ CRITICAL: Derived sales from exchanges must have ZERO profit
+        // Profit comes ONLY from the difference transaction, not from the sale itself
+        // This prevents profit duplication in financial reports
+        if (Boolean.TRUE.equals(dto.getIsDerivedFromExchange())) {
+            sale.setTotalProfit(BigDecimal.ZERO);
+        } else {
+            sale.setTotalProfit(totalProfit);
+        }
+        
+        sale.setIsDerivedFromExchange(dto.getIsDerivedFromExchange());
 
         // Validate and create payments
         validatePayments(dto, totalAmount);
@@ -115,7 +134,16 @@ public class CreateSaleUseCase {
 
         // Save and record transaction
         Sale savedSale = saleRepository.save(sale);
-        transactionService.recordTransactionFromSale(savedSale, principal);
+
+        // ⚠️ CRITICAL: Only record financial transactions if NOT derived from exchange
+        //
+        // isDerivedFromExchange MUST only be true when sale is created by ExchangeProductUseCase.
+        // This prevents duplicate financial transactions since the original sale already has them.
+        //
+        // DO NOT set this flag manually unless you understand the financial implications.
+        if (!Boolean.TRUE.equals(dto.getIsDerivedFromExchange())) {
+            transactionService.recordTransactionFromSale(savedSale, principal);
+        }
 
         return convertToDTO(savedSale);
     }
@@ -134,8 +162,8 @@ public class CreateSaleUseCase {
     private void validateStock(InventoryItem item, int requiredQuantity) {
         if (item.getQuantity() < requiredQuantity) {
             throw new InsufficientStockException(
-                    item.getProductVariant().getId(), 
-                    item.getQuantity(), 
+                    item.getProductVariant().getId(),
+                    item.getQuantity(),
                     requiredQuantity);
         }
     }

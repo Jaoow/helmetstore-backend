@@ -18,8 +18,13 @@ public enum TransactionDetail {
     /** Receitas financeiras (juros, bônus) — lucro e caixa */
     EXTRA_INCOME(true, true),
 
-    /** Reembolso de compras canceladas — NÃO afeta lucro (apenas devolve despesa), mas aumenta caixa */
-    REFUND(false, true),
+    /**
+     * Reversão de COGS em trocas/devoluções — restaura lucro.
+     * Usado quando produto volta ao estoque (cancelamento ou troca).
+     * affectsProfit = true (restaura o lucro que foi "gasto" no COGS original)
+     * affectsCash = false (não há movimento de caixa, apenas ajuste contábil)
+     */
+    COGS_REVERSAL(true, false),
 
 
     // === EXPENSES (SAÍDAS) ===
@@ -27,11 +32,18 @@ public enum TransactionDetail {
     /** Compra de estoque — NÃO afeta lucro, mas reduz caixa */
     INVENTORY_PURCHASE(false, true),
 
-    /** Custo do produto vendido (CPV) — diminui lucro e caixa */
-    COST_OF_GOODS_SOLD(true, true),
+    /** Custo do produto vendido (CPV) — diminui lucro, NÃO diminui caixa (já foi pago na compra) */
+    COST_OF_GOODS_SOLD(true, false),
 
-    /** Reversão de COGS em trocas/devoluções — restaura lucro */
-    COGS_REVERSAL(true, false),
+    /**
+     * Estorno de venda — reduz lucro e caixa.
+     * Usado em cancelamentos de venda com devolução de dinheiro ao cliente.
+     * DIFERENTE de REFUND genérico (que não afeta lucro).
+     */
+    SALE_REFUND(true, true),
+
+    /** Reembolso de compras/despesas canceladas — NÃO afeta lucro (apenas devolve despesa), mas aumenta caixa */
+    REFUND(false, true),
 
     /** Despesas fixas — diminuem lucro e caixa */
     FIXED_EXPENSE(true, true),
