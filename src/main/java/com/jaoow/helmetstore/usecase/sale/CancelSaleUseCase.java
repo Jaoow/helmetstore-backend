@@ -158,8 +158,15 @@ public class CancelSaleUseCase {
             throw new BusinessException("Para cancelamento parcial, é necessário especificar os itens a cancelar");
         }
 
-        // Partial cancellation requires refund (business rule) UNLESS it's part of an exchange
-        if (!request.getCancelEntireSale() && !request.getGenerateRefund() && !Boolean.TRUE.equals(request.getIsPartOfExchange())) {
+        // Partial cancellation not allowed for sales with only one item
+        if (!request.getCancelEntireSale() && sale.getItems().size() == 1) {
+            throw new BusinessException("Não é possível cancelar parcialmente uma venda com apenas um item");
+        }
+
+        // Partial cancellation requires refund UNLESS it's part of an exchange
+        if (!request.getCancelEntireSale()
+                && !request.getGenerateRefund()
+                && !Boolean.TRUE.equals(request.getIsPartOfExchange())) {
             throw new BusinessException("Cancelamento parcial exige estorno do valor proporcional");
         }
 
@@ -367,7 +374,7 @@ public class CancelSaleUseCase {
                 .reference(refundReference)
                 .referenceSubId(null) // Not used for refunds to avoid conflicts with payment transactions
                 .account(account)
-                // DOUBLE-ENTRY LEDGER FLAGS (inherited from TransactionDetail.SALE_REFUND)
+                // DOUBLE-ENTRY LEDGER FLAGS
                 .affectsProfit(true)   // Refund DOES affect profit (reduces profit)
                 .affectsCash(true)     // And reduces cash
                 .walletDestination(walletDest)
