@@ -9,7 +9,7 @@ import com.jaoow.helmetstore.model.inventory.InventoryItem;
 import com.jaoow.helmetstore.model.sale.SaleItem;
 import com.jaoow.helmetstore.repository.InventoryItemRepository;
 import com.jaoow.helmetstore.repository.SaleRepository;
-import com.jaoow.helmetstore.service.TransactionService;
+import com.jaoow.helmetstore.usecase.transaction.RemoveTransactionLinkedToSaleUseCase;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Caching;
@@ -34,7 +34,7 @@ public class DeleteSaleUseCase {
 
     private final SaleRepository saleRepository;
     private final InventoryItemRepository inventoryItemRepository;
-    private final TransactionService transactionService;
+    private final RemoveTransactionLinkedToSaleUseCase removeTransactionLinkedToSaleUseCase;
     private final InventoryHelper inventoryHelper;
 
     @Caching(evict = {
@@ -53,7 +53,7 @@ public class DeleteSaleUseCase {
         restoreStockFromSale(sale, inventory);
 
         // Remove associated transactions
-        transactionService.removeTransactionLinkedToSale(sale);
+        removeTransactionLinkedToSaleUseCase.execute(sale);
 
         // Delete sale
         saleRepository.delete(sale);

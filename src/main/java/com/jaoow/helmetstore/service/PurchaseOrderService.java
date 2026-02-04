@@ -17,6 +17,9 @@ import com.jaoow.helmetstore.model.inventory.InventoryItem;
 import com.jaoow.helmetstore.repository.InventoryItemRepository;
 import com.jaoow.helmetstore.repository.ProductVariantRepository;
 import com.jaoow.helmetstore.repository.PurchaseOrderRepository;
+import com.jaoow.helmetstore.usecase.transaction.CreateRefundTransactionForCanceledItemUseCase;
+import com.jaoow.helmetstore.usecase.transaction.RecordTransactionFromPurchaseOrderUseCase;
+import com.jaoow.helmetstore.usecase.transaction.RemoveTransactionLinkedToPurchaseOrderUseCase;
 import lombok.RequiredArgsConstructor;
 import org.modelmapper.ModelMapper;
 import org.springframework.cache.annotation.CacheEvict;
@@ -44,7 +47,9 @@ public class PurchaseOrderService {
     private final ProductVariantRepository productVariantRepository;
     private final InventoryHelper inventoryHelper;
     private final InventoryItemRepository inventoryItemRepository;
-    private final TransactionService transactionService;
+    private final RecordTransactionFromPurchaseOrderUseCase recordTransactionFromPurchaseOrderUseCase;
+    private final RemoveTransactionLinkedToPurchaseOrderUseCase removeTransactionLinkedToPurchaseOrderUseCase;
+    private final CreateRefundTransactionForCanceledItemUseCase createRefundTransactionForCanceledItemUseCase;
 
     @Transactional(readOnly = true)
     @PreAuthorize("hasRole('ADMIN')")
@@ -113,7 +118,7 @@ public class PurchaseOrderService {
         purchaseOrder.setTotalAmount(totalAmount);
 
         purchaseOrder = purchaseOrderRepository.save(purchaseOrder);
-        transactionService.recordTransactionFromPurchaseOrder(purchaseOrder, principal);
+        recordTransactionFromPurchaseOrderUseCase.execute(purchaseOrder, principal);
 
         return modelMapper.map(purchaseOrder, PurchaseOrderDTO.class);
     }
@@ -197,7 +202,7 @@ public class PurchaseOrderService {
         }
 
         if (newStatus == PurchaseOrderStatus.CANCELED) {
-            transactionService.removeTransactionLinkedToPurchaseOrder(order);
+            removeTransactionLinkedToPurchaseOrderUseCase.execute(order);
         }
 
         order.setStatus(newStatus);
@@ -301,10 +306,10 @@ public class PurchaseOrderService {
         // Se não há mais itens, cancelar o pedido inteiro
         if (order.getItems().isEmpty()) {
             order.setStatus(PurchaseOrderStatus.CANCELED);
-            transactionService.removeTransactionLinkedToPurchaseOrder(order);
+            removeTransactionLinkedToPurchaseOrderUseCase.execute(order);
         } else {
             // Criar transação de reembolso
-            transactionService.createRefundTransactionForCanceledItem(order, itemAmount, itemDescription, principal);
+            createRefundTransactionForCanceledItemUseCase.execute(order, itemAmount, itemDescription, principal);
         }
 
         order = purchaseOrderRepository.save(order);

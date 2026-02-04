@@ -17,6 +17,7 @@ import com.jaoow.helmetstore.repository.*;
 import com.jaoow.helmetstore.repository.user.UserRepository;
 import com.jaoow.helmetstore.usecase.sale.CreateSaleUseCase;
 import com.jaoow.helmetstore.usecase.sale.ExchangeProductUseCase;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -88,57 +89,42 @@ public class ExchangeProductUseCaseTest {
 
     @BeforeEach
     public void setup() {
-        // Use existing user from database instead of creating new one
-        // This is necessary because the database has a NOT NULL constraint on inventory.owner_id
-        // that prevents creating new users through JPA cascade
+        // Use existing user from test database to avoid schema incompatibility
         testUser = userRepository.findAll().stream()
                 .findFirst()
-                .orElseThrow(() -> new IllegalStateException(
-                        "No users found in database. Please ensure at least one user exists for testing."));
+                .orElseThrow(() -> new RuntimeException("No users found in test database"));
 
-        String userEmail = testUser.getEmail();
+        // Get user's inventory and accounts
+        testInventory = testUser.getInventory();
+        if (testInventory == null) {
+            throw new RuntimeException("Test user has no inventory");
+        }
 
-        // Create test principal with actual user email
+        // Get or create CASH account
+        cashAccount = testUser.getAccounts().stream()
+                .filter(acc -> acc.getType() == AccountType.CASH)
+                .findFirst()
+                .orElseGet(() -> {
+                    Account newAccount = Account.builder()
+                            .type(AccountType.CASH)
+                            .user(testUser)
+                            .build();
+                    return accountRepository.save(newAccount);
+                });
+
+        // Create principal
         testPrincipal = new UsernamePasswordAuthenticationToken(
-                userEmail,
+                testUser.getEmail(),
                 null,
                 List.of(new SimpleGrantedAuthority("ROLE_USER"))
         );
 
-        testInventory = testUser.getInventory();
-        if (testInventory == null) {
-            throw new IllegalStateException("Test user does not have an inventory. User: " + userEmail);
-        }
-
-        // Get or create cash account for the test user
-        cashAccount = accountRepository.findByUserEmailAndType(userEmail, AccountType.CASH)
-                .orElseGet(() -> {
-                    Account account = Account.builder()
-                            .type(AccountType.CASH)
-                            .user(testUser)
-                            .build();
-                    return accountRepository.save(account);
-                });
-
-        // Ensure BANK account exists as well (needed for some payment methods)
-        accountRepository.findByUserEmailAndType(userEmail, AccountType.BANK)
-                .orElseGet(() -> {
-                    Account bankAccount = Account.builder()
-                            .type(AccountType.BANK)
-                            .user(testUser)
-                            .build();
-                    return accountRepository.save(bankAccount);
-                });
-
-        // Create products
-        var category = categoryRepository.findAll().stream()
-                .findFirst()
-                .orElseGet(() -> categoryRepository.save(
-                        com.jaoow.helmetstore.model.Category.builder()
-                                .name("Test Category")
-                                .inventory(testInventory)
-                                .build()
-                ));
+        // Create test category
+        var category = com.jaoow.helmetstore.model.Category.builder()
+                .name("Test Category")
+                .inventory(testInventory)
+                .build();
+        category = categoryRepository.save(category);
 
         productX = Product.builder()
                 .model("Capacete X")
@@ -189,6 +175,39 @@ public class ExchangeProductUseCaseTest {
                 .averageCost(BigDecimal.valueOf(80.00))
                 .build();
         inventoryItemRepository.save(itemZ);
+    }
+
+    @AfterEach
+    public void tearDown() {
+        // Clean up test data in correct order (respecting foreign keys)
+        if (testUser != null && testUser.getId() != null) {
+            // Delete transactions first
+            transactionRepository.deleteAll();
+            
+            // Delete sales and related entities
+            saleRepository.deleteAll();
+            
+            // Delete inventory items
+            inventoryItemRepository.deleteAll();
+            
+            // Delete product variants and products
+            productVariantRepository.deleteAll();
+            productRepository.deleteAll();
+            
+            // Delete category
+            categoryRepository.deleteAll();
+            
+            // Delete accounts
+            accountRepository.deleteAll();
+            
+            // Delete inventory
+            if (testInventory != null) {
+                inventoryRepository.delete(testInventory);
+            }
+            
+            // Finally delete user
+            userRepository.delete(testUser);
+        }
     }
 
     @Test

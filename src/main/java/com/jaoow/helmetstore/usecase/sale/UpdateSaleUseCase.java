@@ -16,7 +16,8 @@ import com.jaoow.helmetstore.model.sale.SalePayment;
 import com.jaoow.helmetstore.repository.InventoryItemRepository;
 import com.jaoow.helmetstore.repository.ProductVariantRepository;
 import com.jaoow.helmetstore.repository.SaleRepository;
-import com.jaoow.helmetstore.service.TransactionService;
+import com.jaoow.helmetstore.usecase.transaction.RecordTransactionFromSaleUseCase;
+import com.jaoow.helmetstore.usecase.transaction.RemoveTransactionLinkedToSaleUseCase;
 import lombok.RequiredArgsConstructor;
 import org.modelmapper.ModelMapper;
 import org.springframework.cache.annotation.CacheEvict;
@@ -50,7 +51,8 @@ public class UpdateSaleUseCase {
     private final SaleRepository saleRepository;
     private final ProductVariantRepository productVariantRepository;
     private final InventoryItemRepository inventoryItemRepository;
-    private final TransactionService transactionService;
+    private final RecordTransactionFromSaleUseCase recordTransactionFromSaleUseCase;
+    private final RemoveTransactionLinkedToSaleUseCase removeTransactionLinkedToSaleUseCase;
     private final InventoryHelper inventoryHelper;
     private final SaleCalculationHelper saleCalculationHelper;
     private final ModelMapper modelMapper;
@@ -112,9 +114,9 @@ public class UpdateSaleUseCase {
         updatePayments(sale, dto);
 
         // Step 6: Update transactions
-        transactionService.removeTransactionLinkedToSale(sale);
+        removeTransactionLinkedToSaleUseCase.execute(sale);
         Sale updatedSale = saleRepository.save(sale);
-        transactionService.recordTransactionFromSale(updatedSale, principal);
+        recordTransactionFromSaleUseCase.execute(updatedSale, principal);
 
         return convertToDTO(updatedSale);
     }

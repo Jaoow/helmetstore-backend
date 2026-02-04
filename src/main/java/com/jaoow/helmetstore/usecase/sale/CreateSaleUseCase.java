@@ -15,7 +15,7 @@ import com.jaoow.helmetstore.model.sale.SalePayment;
 import com.jaoow.helmetstore.repository.InventoryItemRepository;
 import com.jaoow.helmetstore.repository.ProductVariantRepository;
 import com.jaoow.helmetstore.repository.SaleRepository;
-import com.jaoow.helmetstore.service.TransactionService;
+import com.jaoow.helmetstore.usecase.transaction.RecordTransactionFromSaleUseCase;
 import lombok.RequiredArgsConstructor;
 import org.modelmapper.ModelMapper;
 import org.springframework.cache.annotation.CacheEvict;
@@ -58,7 +58,7 @@ public class CreateSaleUseCase {
     private final SaleRepository saleRepository;
     private final ProductVariantRepository productVariantRepository;
     private final InventoryItemRepository inventoryItemRepository;
-    private final TransactionService transactionService;
+    private final RecordTransactionFromSaleUseCase recordTransactionFromSaleUseCase;
     private final InventoryHelper inventoryHelper;
     private final SaleCalculationHelper saleCalculationHelper;
     private final ModelMapper modelMapper;
@@ -142,7 +142,7 @@ public class CreateSaleUseCase {
         //
         // DO NOT set this flag manually unless you understand the financial implications.
         if (!Boolean.TRUE.equals(dto.getIsDerivedFromExchange())) {
-            transactionService.recordTransactionFromSale(savedSale, principal);
+            recordTransactionFromSaleUseCase.execute(savedSale, principal);
         }
 
         return convertToDTO(savedSale);

@@ -80,6 +80,7 @@ public class ExchangeProductUseCase {
     private final InventoryRepository inventoryRepository;
     private final InventoryItemRepository inventoryItemRepository;
     private final ProductVariantRepository productVariantRepository;
+    private final com.jaoow.helmetstore.service.AccountService accountService;
 
         @Caching(evict = {
                 @CacheEvict(value = CacheNames.PRODUCT_INDICATORS, allEntries = true),
@@ -121,7 +122,7 @@ public class ExchangeProductUseCase {
                 originalSale
         );
 
-        var cancellationResponse = cancelSaleUseCase.execute(
+        cancelSaleUseCase.execute(
                 originalSale.getId(),
                 cancellationRequest,
                 principal
@@ -485,13 +486,16 @@ public class ExchangeProductUseCase {
             LocalDateTime exchangeDate,
             Principal principal
     ) {
+        // Get payment method for the account (use refund payment method or fallback to CASH)
+        PaymentMethod paymentMethod = request.getRefundPaymentMethod() != null 
+                ? request.getRefundPaymentMethod() 
+                : PaymentMethod.CASH;
+        
         // Get user's account for wallet destination
-        AccountType walletType = (request.getRefundPaymentMethod() == PaymentMethod.CASH)
-                ? AccountType.CASH
-                : AccountType.BANK;
-
-        Account userAccount = accountRepository.findByUserEmailAndType(principal.getName(), walletType)
-                .orElseThrow(() -> new BusinessException("Conta não encontrada"));
+        Account userAccount = accountService.getOrCreateAccountByPaymentMethod(
+                paymentMethod,
+                principal
+        );
 
         Transaction transaction;
 
@@ -516,7 +520,7 @@ public class ExchangeProductUseCase {
                     .account(userAccount)
                     .affectsProfit(true)       // YES: This creates profit
                     .affectsCash(true)         // YES: Cash increases
-                    .walletDestination(walletType)
+                    .walletDestination(userAccount.getType())
                     .build();
 
         } else {
@@ -541,7 +545,7 @@ public class ExchangeProductUseCase {
                     .account(userAccount)
                     .affectsProfit(true)       // YES: This reduces profit
                     .affectsCash(true)         // YES: Cash decreases
-                    .walletDestination(walletType)
+                    .walletDestination(userAccount.getType())
                     .build();
         }
 

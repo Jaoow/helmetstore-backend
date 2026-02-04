@@ -52,36 +52,57 @@ public class AccountService {
                 .collect(Collectors.toList());
     }
 
-    Optional<Account> findAccountByPaymentMethodAndUser(PaymentMethod paymentMethod, Principal principal) {
+    public Optional<Account> findAccountByPaymentMethodAndUser(PaymentMethod paymentMethod, Principal principal) {
         if (paymentMethod == null || principal == null || principal.getName() == null) {
             return Optional.empty();
         }
 
-        Optional<Account> accountOpt = switch (paymentMethod) {
+        // PIX e CARD usam conta BANK, CASH usa conta CASH
+        return switch (paymentMethod) {
             case CASH ->
                 accountRepository.findByUserEmailAndTypeWithTransactions(principal.getName(), AccountType.CASH);
             case PIX, CARD ->
                 accountRepository.findByUserEmailAndTypeWithTransactions(principal.getName(), AccountType.BANK);
         };
+    }
 
-        return accountOpt.or(() -> {
-            try {
-                User user = userService.findUserByEmail(principal.getName());
-                if (user == null) {
-                    return Optional.empty();
-                }
+    /**
+     * Busca ou cria automaticamente uma conta baseada no método de pagamento.
+     * Garante que a conta sempre exista, criando-a se necessário.
+     * 
+     * @param paymentMethod método de pagamento que determina o tipo de conta
+     * @param principal usuário autenticado
+     * @return conta existente ou recém-criada
+     * @throws IllegalArgumentException se parâmetros forem inválidos ou usuário não encontrado
+     */
+    public Account getOrCreateAccountByPaymentMethod(PaymentMethod paymentMethod, Principal principal) {
+        if (paymentMethod == null || principal == null || principal.getName() == null) {
+            throw new IllegalArgumentException("Método de pagamento e usuário são obrigatórios");
+        }
 
-                AccountType type = paymentMethod == PaymentMethod.CASH ? AccountType.CASH : AccountType.BANK;
-                Account account = Account.builder()
-                        .type(type)
-                        .user(user)
-                        .build();
+        // Tenta encontrar a conta existente
+        Optional<Account> existingAccount = findAccountByPaymentMethodAndUser(paymentMethod, principal);
+        if (existingAccount.isPresent()) {
+            return existingAccount.get();
+        }
 
-                return Optional.of(accountRepository.save(account));
-            } catch (Exception e) {
-                return Optional.empty();
-            }
-        });
+        // Se não existe, cria uma nova
+        User user = userService.findUserByEmail(principal.getName());
+        if (user == null) {
+            throw new IllegalArgumentException("Usuário não encontrado: " + principal.getName());
+        }
+
+        AccountType accountType = switch (paymentMethod) {
+            case CASH -> AccountType.CASH;
+            case PIX, CARD -> AccountType.BANK;
+        };
+
+        Account newAccount = Account.builder()
+                .type(accountType)
+                .user(user)
+                .build();
+
+        return accountRepository.save(newAccount);
     }
 
     public void convertBalance(BalanceConversionDTO conversionDTO, Principal principal) {
