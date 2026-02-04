@@ -158,9 +158,15 @@ public class CancelSaleUseCase {
             throw new BusinessException("Para cancelamento parcial, é necessário especificar os itens a cancelar");
         }
 
-        // Partial cancellation not allowed for sales with only one item
+        // Partial cancellation not allowed for sales with only one item AND quantity = 1
         if (!request.getCancelEntireSale() && sale.getItems().size() == 1) {
-            throw new BusinessException("Não é possível cancelar parcialmente uma venda com apenas um item");
+            SaleItem singleItem = sale.getItems().get(0);
+            int alreadyCancelled = singleItem.getCancelledQuantity() != null ? singleItem.getCancelledQuantity() : 0;
+            int availableQuantity = singleItem.getQuantity() - alreadyCancelled;
+
+            if (availableQuantity <= 1) {
+                throw new BusinessException("Não é possível cancelar parcialmente uma venda com apenas um item de quantidade unitária");
+            }
         }
 
         // Partial cancellation requires refund UNLESS it's part of an exchange

@@ -307,10 +307,12 @@ public class ExchangeProductUseCase {
                 .filter(item -> !item.getIsCancelled())
                 .toList();
 
+        // Se não está devolvendo todos os itens, não é cancelamento total
         if (itemsToReturn.size() != activeItems.size()) {
             return false;
         }
 
+        // Verifica se TODOS os itens estão sendo devolvidos com TODAS as suas quantidades disponíveis
         for (SaleItem saleItem : activeItems) {
             int alreadyCancelled = saleItem.getCancelledQuantity() != null ? saleItem.getCancelledQuantity() : 0;
             int availableQuantity = saleItem.getQuantity() - alreadyCancelled;
@@ -320,7 +322,8 @@ public class ExchangeProductUseCase {
                     .findFirst()
                     .orElse(null);
 
-            if (returnItem == null || returnItem.getQuantityToReturn() != availableQuantity) {
+            // Se não achou o item ou a quantidade não é total, não é cancelamento total
+            if (returnItem == null || returnItem.getQuantityToReturn() < availableQuantity) {
                 return false;
             }
         }
@@ -460,6 +463,21 @@ public class ExchangeProductUseCase {
         }
     }
 
+    /**
+     * Creates the financial adjustment transaction for the exchange difference
+     *
+     * ⚠️ CRITICAL ACCOUNTING RULE:
+     * This is the ONLY financial impact of an exchange. Exchanges are accounting reappointments,
+     * not new financial events. Only the difference between returned and new items creates
+     * a transaction that affects profit/cash.
+     *
+     * @param amountDifference The difference (positive = additional charge, negative = refund)
+     * @param request The exchange request
+     * @param originalSale The original sale
+     * @param exchangeDate The exchange date
+     * @param principal The authenticated user
+     * @return The ID of the created transaction, or null if no difference
+     */
     private Long createFinancialAdjustmentTransaction(
             BigDecimal amountDifference,
             ProductExchangeRequestDTO request,
@@ -467,6 +485,7 @@ public class ExchangeProductUseCase {
             LocalDateTime exchangeDate,
             Principal principal
     ) {
+        // Get user's account for wallet destination
         AccountType walletType = (request.getRefundPaymentMethod() == PaymentMethod.CASH)
                 ? AccountType.CASH
                 : AccountType.BANK;
@@ -476,6 +495,10 @@ public class ExchangeProductUseCase {
 
         Transaction transaction;
 
+        if (amountDifference.compareTo(BigDecimal.ZERO) > 0) {
+            // ========================================================================
+            // Customer pays MORE: Create INCOME transaction for additional charge
+            // ========================================================================
             transaction = Transaction.builder()
                     .date(exchangeDate)
                     .amount(amountDifference)  // Positive value (income)
@@ -496,6 +519,10 @@ public class ExchangeProductUseCase {
                     .walletDestination(walletType)
                     .build();
 
+        } else {
+            // ========================================================================
+            // Customer receives REFUND: Create EXPENSE transaction for the difference
+            // ========================================================================
             BigDecimal refundAmount = amountDifference.abs();
 
             transaction = Transaction.builder()
