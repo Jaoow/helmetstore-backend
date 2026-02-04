@@ -1255,4 +1255,669 @@ public class ExchangeProductUseCaseTest {
                 .as("Nenhuma transação deve ter sido criada")
                 .isEqualTo(transactionCountBefore);
     }
+
+    // ═══════════════════════════════════════════════════════════════════════════════════
+    // 🧪 TESTES DE RECEITA E LUCRO
+    // ═══════════════════════════════════════════════════════════════════════════════════
+
+    @Test
+    @DisplayName("Cenário 1: Troca Produto A → Produto B (custo maior) - Lucro ajustado de 40 → 30")
+    public void testScenario1_ExchangeForHigherCostProduct() {
+        // SETUP: Produto A (custo 80, venda 120) → Produto B (custo 90, venda 120)
+        // Produto A
+        ProductVariant variantA = createProductWithVariant("Produto A", "A-1", BigDecimal.valueOf(80.00), 10);
+        
+        // Produto B
+        ProductVariant variantB = createProductWithVariant("Produto B", "B-1", BigDecimal.valueOf(90.00), 10);
+
+        // Venda Original: 1x Produto A por 120
+        SaleCreateDTO originalSale = SaleCreateDTO.builder()
+                .date(LocalDateTime.now())
+                .items(List.of(
+                        SaleItemCreateDTO.builder()
+                                .variantId(variantA.getId())
+                                .quantity(1)
+                                .unitPrice(BigDecimal.valueOf(120.00))
+                                .build()
+                ))
+                .payments(List.of(
+                        SalePaymentCreateDTO.builder()
+                                .paymentMethod(PaymentMethod.CASH)
+                                .amount(BigDecimal.valueOf(120.00))
+                                .build()
+                ))
+                .build();
+
+        var originalSaleResponse = createSaleUseCase.execute(originalSale, testPrincipal);
+
+        // Verificar lucro inicial: 120 - 80 = 40
+        List<Transaction> originalTransactions = transactionRepository
+                .findByAccountUserEmail(testUser.getEmail());
+        
+        BigDecimal originalRevenue = originalTransactions.stream()
+                .filter(t -> t.getType() == TransactionType.INCOME)
+                .filter(t -> t.getDetail() == TransactionDetail.SALE)
+                .map(Transaction::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        
+        BigDecimal originalCOGS = originalTransactions.stream()
+                .filter(t -> t.getType() == TransactionType.EXPENSE)
+                .filter(t -> t.getDetail() == TransactionDetail.COST_OF_GOODS_SOLD)
+                .map(Transaction::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        assertThat(originalRevenue).isEqualByComparingTo(BigDecimal.valueOf(120.00));
+        assertThat(originalCOGS).isEqualByComparingTo(BigDecimal.valueOf(-80.00));
+        BigDecimal originalProfit = originalRevenue.add(originalCOGS);
+        assertThat(originalProfit).isEqualByComparingTo(BigDecimal.valueOf(40.00));
+
+        // AÇÃO: Trocar Produto A por Produto B (mesma venda 120, mas custo 90)
+        ProductExchangeRequestDTO exchangeRequest = ProductExchangeRequestDTO.builder()
+                .originalSaleId(originalSaleResponse.getId())
+                .itemsToReturn(List.of(
+                        ProductExchangeRequestDTO.ItemToReturnDTO.builder()
+                                .saleItemId(originalSaleResponse.getItems().get(0).getId())
+                                .quantityToReturn(1)
+                                .build()
+                ))
+                .newItems(List.of(
+                        ProductExchangeRequestDTO.NewItemDTO.builder()
+                                .variantId(variantB.getId())
+                                .quantity(1)
+                                .unitPrice(BigDecimal.valueOf(120.00))
+                                .build()
+                ))
+                .newSalePayments(List.of()) // Sem pagamento adicional
+                .reason(ExchangeReason.DEFEITO)
+                .build();
+
+        var exchangeResponse = exchangeProductUseCase.execute(exchangeRequest, testPrincipal);
+
+        // VALIDAÇÃO: Verificar lucro após troca
+        List<Transaction> allTransactions = transactionRepository
+                .findByAccountUserEmail(testUser.getEmail());
+
+        // Receita total (deve permanecer 120)
+        BigDecimal totalRevenue = allTransactions.stream()
+                .filter(t -> t.getType() == TransactionType.INCOME)
+                .filter(t -> t.getDetail() == TransactionDetail.SALE)
+                .map(Transaction::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        // COGS total
+        BigDecimal cogsReversals = allTransactions.stream()
+                .filter(t -> t.getType() == TransactionType.INCOME)
+                .filter(t -> t.getDetail() == TransactionDetail.COGS_REVERSAL)
+                .map(Transaction::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal cogsExpenses = allTransactions.stream()
+                .filter(t -> t.getType() == TransactionType.EXPENSE)
+                .filter(t -> t.getDetail() == TransactionDetail.COST_OF_GOODS_SOLD)
+                .map(Transaction::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal netCOGS = cogsExpenses.add(cogsReversals);
+
+        // Receita: 120, COGS líquido: -90 (reverso +80, novo -90)
+        assertThat(totalRevenue).isEqualByComparingTo(BigDecimal.valueOf(120.00));
+        assertThat(netCOGS).isEqualByComparingTo(BigDecimal.valueOf(-90.00));
+        
+        BigDecimal finalProfit = totalRevenue.add(netCOGS);
+        assertThat(finalProfit)
+                .as("Lucro deve ser ajustado de 40 → 30")
+                .isEqualByComparingTo(BigDecimal.valueOf(30.00));
+    }
+
+    @Test
+    @DisplayName("Cenário 2: Troca Produto A → Produto C (custo maior, venda maior com complemento)")
+    public void testScenario2_ExchangeWithAdditionalCharge() {
+        // SETUP: Produto A (custo 80, venda 120) → Produto C (custo 100, venda 140)
+        ProductVariant variantA = createProductWithVariant("Produto A", "A-2", BigDecimal.valueOf(80.00), 10);
+        ProductVariant variantC = createProductWithVariant("Produto C", "C-1", BigDecimal.valueOf(100.00), 10);
+
+        // Venda Original: 1x Produto A por 120
+        SaleCreateDTO originalSale = SaleCreateDTO.builder()
+                .date(LocalDateTime.now())
+                .items(List.of(
+                        SaleItemCreateDTO.builder()
+                                .variantId(variantA.getId())
+                                .quantity(1)
+                                .unitPrice(BigDecimal.valueOf(120.00))
+                                .build()
+                ))
+                .payments(List.of(
+                        SalePaymentCreateDTO.builder()
+                                .paymentMethod(PaymentMethod.CASH)
+                                .amount(BigDecimal.valueOf(120.00))
+                                .build()
+                ))
+                .build();
+
+        var originalSaleResponse = createSaleUseCase.execute(originalSale, testPrincipal);
+
+        // AÇÃO: Trocar por Produto C com complemento de 20 (140 - 120)
+        ProductExchangeRequestDTO exchangeRequest = ProductExchangeRequestDTO.builder()
+                .originalSaleId(originalSaleResponse.getId())
+                .itemsToReturn(List.of(
+                        ProductExchangeRequestDTO.ItemToReturnDTO.builder()
+                                .saleItemId(originalSaleResponse.getItems().get(0).getId())
+                                .quantityToReturn(1)
+                                .build()
+                ))
+                .newItems(List.of(
+                        ProductExchangeRequestDTO.NewItemDTO.builder()
+                                .variantId(variantC.getId())
+                                .quantity(1)
+                                .unitPrice(BigDecimal.valueOf(140.00))
+                                .build()
+                ))
+                .newSalePayments(List.of(
+                        SalePaymentCreateDTO.builder()
+                                .paymentMethod(PaymentMethod.CASH)
+                                .amount(BigDecimal.valueOf(20.00)) // Complemento
+                                .build()
+                ))
+                .reason(ExchangeReason.PREFERENCIA)
+                .build();
+
+        var exchangeResponse = exchangeProductUseCase.execute(exchangeRequest, testPrincipal);
+
+        // VALIDAÇÃO
+        List<Transaction> allTransactions = transactionRepository
+                .findByAccountUserEmail(testUser.getEmail());
+
+        // Receita total = 120 (original) + 20 (complemento) = 140
+        BigDecimal totalRevenue = allTransactions.stream()
+                .filter(t -> t.getType() == TransactionType.INCOME)
+                .filter(t -> t.getDetail() == TransactionDetail.SALE)
+                .map(Transaction::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        // COGS: reverso +80, novo -100 = -100
+        BigDecimal cogsReversals = allTransactions.stream()
+                .filter(t -> t.getType() == TransactionType.INCOME)
+                .filter(t -> t.getDetail() == TransactionDetail.COGS_REVERSAL)
+                .map(Transaction::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal cogsExpenses = allTransactions.stream()
+                .filter(t -> t.getType() == TransactionType.EXPENSE)
+                .filter(t -> t.getDetail() == TransactionDetail.COST_OF_GOODS_SOLD)
+                .map(Transaction::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal netCOGS = cogsExpenses.add(cogsReversals);
+
+        assertThat(totalRevenue).isEqualByComparingTo(BigDecimal.valueOf(140.00));
+        assertThat(netCOGS).isEqualByComparingTo(BigDecimal.valueOf(-100.00));
+        
+        BigDecimal finalProfit = totalRevenue.add(netCOGS);
+        assertThat(finalProfit)
+                .as("Lucro deve ser 140 - 100 = 40")
+                .isEqualByComparingTo(BigDecimal.valueOf(40.00));
+    }
+
+    @Test
+    @DisplayName("Cenário 3: Troca por produto de custo menor - Lucro aumenta")
+    public void testScenario3_ExchangeForLowerCostProduct() {
+        // SETUP: Produto A (custo 80, venda 120) → Produto D (custo 60, venda 120)
+        ProductVariant variantA = createProductWithVariant("Produto A", "A-3", BigDecimal.valueOf(80.00), 10);
+        ProductVariant variantD = createProductWithVariant("Produto D", "D-1", BigDecimal.valueOf(60.00), 10);
+
+        // Venda Original
+        SaleCreateDTO originalSale = SaleCreateDTO.builder()
+                .date(LocalDateTime.now())
+                .items(List.of(
+                        SaleItemCreateDTO.builder()
+                                .variantId(variantA.getId())
+                                .quantity(1)
+                                .unitPrice(BigDecimal.valueOf(120.00))
+                                .build()
+                ))
+                .payments(List.of(
+                        SalePaymentCreateDTO.builder()
+                                .paymentMethod(PaymentMethod.CASH)
+                                .amount(BigDecimal.valueOf(120.00))
+                                .build()
+                ))
+                .build();
+
+        var originalSaleResponse = createSaleUseCase.execute(originalSale, testPrincipal);
+
+        // AÇÃO: Trocar por produto de custo menor
+        ProductExchangeRequestDTO exchangeRequest = ProductExchangeRequestDTO.builder()
+                .originalSaleId(originalSaleResponse.getId())
+                .itemsToReturn(List.of(
+                        ProductExchangeRequestDTO.ItemToReturnDTO.builder()
+                                .saleItemId(originalSaleResponse.getItems().get(0).getId())
+                                .quantityToReturn(1)
+                                .build()
+                ))
+                .newItems(List.of(
+                        ProductExchangeRequestDTO.NewItemDTO.builder()
+                                .variantId(variantD.getId())
+                                .quantity(1)
+                                .unitPrice(BigDecimal.valueOf(120.00))
+                                .build()
+                ))
+                .newSalePayments(List.of())
+                .reason(ExchangeReason.DEFEITO)
+                .build();
+
+        var exchangeResponse = exchangeProductUseCase.execute(exchangeRequest, testPrincipal);
+
+        // VALIDAÇÃO
+        List<Transaction> allTransactions = transactionRepository
+                .findByAccountUserEmail(testUser.getEmail());
+
+        BigDecimal totalRevenue = allTransactions.stream()
+                .filter(t -> t.getType() == TransactionType.INCOME)
+                .filter(t -> t.getDetail() == TransactionDetail.SALE)
+                .map(Transaction::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal cogsReversals = allTransactions.stream()
+                .filter(t -> t.getType() == TransactionType.INCOME)
+                .filter(t -> t.getDetail() == TransactionDetail.COGS_REVERSAL)
+                .map(Transaction::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal cogsExpenses = allTransactions.stream()
+                .filter(t -> t.getType() == TransactionType.EXPENSE)
+                .filter(t -> t.getDetail() == TransactionDetail.COST_OF_GOODS_SOLD)
+                .map(Transaction::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal netCOGS = cogsExpenses.add(cogsReversals);
+
+        assertThat(totalRevenue).isEqualByComparingTo(BigDecimal.valueOf(120.00));
+        assertThat(netCOGS).isEqualByComparingTo(BigDecimal.valueOf(-60.00));
+        
+        BigDecimal finalProfit = totalRevenue.add(netCOGS);
+        assertThat(finalProfit)
+                .as("Lucro aumenta para 120 - 60 = 60")
+                .isEqualByComparingTo(BigDecimal.valueOf(60.00));
+    }
+
+    @Test
+    @DisplayName("Cenário 4: Troca sem alteração de custo - Lucro permanece")
+    public void testScenario4_ExchangeNeutralCost() {
+        // SETUP: Produto A (custo 80, venda 120) → Produto E (custo 80, venda 120)
+        ProductVariant variantA = createProductWithVariant("Produto A", "A-4", BigDecimal.valueOf(80.00), 10);
+        ProductVariant variantE = createProductWithVariant("Produto E", "E-1", BigDecimal.valueOf(80.00), 10);
+
+        // Venda Original
+        SaleCreateDTO originalSale = SaleCreateDTO.builder()
+                .date(LocalDateTime.now())
+                .items(List.of(
+                        SaleItemCreateDTO.builder()
+                                .variantId(variantA.getId())
+                                .quantity(1)
+                                .unitPrice(BigDecimal.valueOf(120.00))
+                                .build()
+                ))
+                .payments(List.of(
+                        SalePaymentCreateDTO.builder()
+                                .paymentMethod(PaymentMethod.CASH)
+                                .amount(BigDecimal.valueOf(120.00))
+                                .build()
+                ))
+                .build();
+
+        var originalSaleResponse = createSaleUseCase.execute(originalSale, testPrincipal);
+
+        // AÇÃO: Trocar por produto de mesmo custo
+        ProductExchangeRequestDTO exchangeRequest = ProductExchangeRequestDTO.builder()
+                .originalSaleId(originalSaleResponse.getId())
+                .itemsToReturn(List.of(
+                        ProductExchangeRequestDTO.ItemToReturnDTO.builder()
+                                .saleItemId(originalSaleResponse.getItems().get(0).getId())
+                                .quantityToReturn(1)
+                                .build()
+                ))
+                .newItems(List.of(
+                        ProductExchangeRequestDTO.NewItemDTO.builder()
+                                .variantId(variantE.getId())
+                                .quantity(1)
+                                .unitPrice(BigDecimal.valueOf(120.00))
+                                .build()
+                ))
+                .newSalePayments(List.of())
+                .reason(ExchangeReason.PREFERENCIA)
+                .build();
+
+        var exchangeResponse = exchangeProductUseCase.execute(exchangeRequest, testPrincipal);
+
+        // VALIDAÇÃO
+        List<Transaction> allTransactions = transactionRepository
+                .findByAccountUserEmail(testUser.getEmail());
+
+        BigDecimal totalRevenue = allTransactions.stream()
+                .filter(t -> t.getType() == TransactionType.INCOME)
+                .filter(t -> t.getDetail() == TransactionDetail.SALE)
+                .map(Transaction::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal cogsReversals = allTransactions.stream()
+                .filter(t -> t.getType() == TransactionType.INCOME)
+                .filter(t -> t.getDetail() == TransactionDetail.COGS_REVERSAL)
+                .map(Transaction::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal cogsExpenses = allTransactions.stream()
+                .filter(t -> t.getType() == TransactionType.EXPENSE)
+                .filter(t -> t.getDetail() == TransactionDetail.COST_OF_GOODS_SOLD)
+                .map(Transaction::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal netCOGS = cogsExpenses.add(cogsReversals);
+
+        assertThat(totalRevenue).isEqualByComparingTo(BigDecimal.valueOf(120.00));
+        assertThat(netCOGS).isEqualByComparingTo(BigDecimal.valueOf(-80.00));
+        
+        BigDecimal finalProfit = totalRevenue.add(netCOGS);
+        assertThat(finalProfit)
+                .as("Lucro permanece em 40 (troca neutra)")
+                .isEqualByComparingTo(BigDecimal.valueOf(40.00));
+    }
+
+    @Test
+    @DisplayName("Cenário 5: Troca gera prejuízo - Sistema registra corretamente")
+    public void testScenario5_ExchangeGeneratesLoss() {
+        // SETUP: Produto A (custo 80, venda 120) → Produto F (custo 130, venda 120)
+        ProductVariant variantA = createProductWithVariant("Produto A", "A-5", BigDecimal.valueOf(80.00), 10);
+        ProductVariant variantF = createProductWithVariant("Produto F", "F-1", BigDecimal.valueOf(130.00), 10);
+
+        // Venda Original
+        SaleCreateDTO originalSale = SaleCreateDTO.builder()
+                .date(LocalDateTime.now())
+                .items(List.of(
+                        SaleItemCreateDTO.builder()
+                                .variantId(variantA.getId())
+                                .quantity(1)
+                                .unitPrice(BigDecimal.valueOf(120.00))
+                                .build()
+                ))
+                .payments(List.of(
+                        SalePaymentCreateDTO.builder()
+                                .paymentMethod(PaymentMethod.CASH)
+                                .amount(BigDecimal.valueOf(120.00))
+                                .build()
+                ))
+                .build();
+
+        var originalSaleResponse = createSaleUseCase.execute(originalSale, testPrincipal);
+
+        // AÇÃO: Trocar por produto com custo muito alto
+        ProductExchangeRequestDTO exchangeRequest = ProductExchangeRequestDTO.builder()
+                .originalSaleId(originalSaleResponse.getId())
+                .itemsToReturn(List.of(
+                        ProductExchangeRequestDTO.ItemToReturnDTO.builder()
+                                .saleItemId(originalSaleResponse.getItems().get(0).getId())
+                                .quantityToReturn(1)
+                                .build()
+                ))
+                .newItems(List.of(
+                        ProductExchangeRequestDTO.NewItemDTO.builder()
+                                .variantId(variantF.getId())
+                                .quantity(1)
+                                .unitPrice(BigDecimal.valueOf(120.00))
+                                .build()
+                ))
+                .newSalePayments(List.of())
+                .reason(ExchangeReason.DEFEITO)
+                .build();
+
+        var exchangeResponse = exchangeProductUseCase.execute(exchangeRequest, testPrincipal);
+
+        // VALIDAÇÃO
+        List<Transaction> allTransactions = transactionRepository
+                .findByAccountUserEmail(testUser.getEmail());
+
+        BigDecimal totalRevenue = allTransactions.stream()
+                .filter(t -> t.getType() == TransactionType.INCOME)
+                .filter(t -> t.getDetail() == TransactionDetail.SALE)
+                .map(Transaction::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal cogsReversals = allTransactions.stream()
+                .filter(t -> t.getType() == TransactionType.INCOME)
+                .filter(t -> t.getDetail() == TransactionDetail.COGS_REVERSAL)
+                .map(Transaction::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal cogsExpenses = allTransactions.stream()
+                .filter(t -> t.getType() == TransactionType.EXPENSE)
+                .filter(t -> t.getDetail() == TransactionDetail.COST_OF_GOODS_SOLD)
+                .map(Transaction::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal netCOGS = cogsExpenses.add(cogsReversals);
+
+        assertThat(totalRevenue).isEqualByComparingTo(BigDecimal.valueOf(120.00));
+        assertThat(netCOGS).isEqualByComparingTo(BigDecimal.valueOf(-130.00));
+        
+        BigDecimal finalProfit = totalRevenue.add(netCOGS);
+        assertThat(finalProfit)
+                .as("Sistema permite prejuízo: 120 - 130 = -10")
+                .isEqualByComparingTo(BigDecimal.valueOf(-10.00));
+    }
+
+    @Test
+    @DisplayName("Cenário 6: Troca com complemento parcial")
+    public void testScenario6_ExchangeWithPartialComplement() {
+        // SETUP: Produto A (custo 80, venda 120) → Produto G (custo 100, venda 140)
+        // Cliente paga complemento de apenas 10 (não cobre todo aumento)
+        ProductVariant variantA = createProductWithVariant("Produto A", "A-6", BigDecimal.valueOf(80.00), 10);
+        ProductVariant variantG = createProductWithVariant("Produto G", "G-1", BigDecimal.valueOf(100.00), 10);
+
+        // Venda Original
+        SaleCreateDTO originalSale = SaleCreateDTO.builder()
+                .date(LocalDateTime.now())
+                .items(List.of(
+                        SaleItemCreateDTO.builder()
+                                .variantId(variantA.getId())
+                                .quantity(1)
+                                .unitPrice(BigDecimal.valueOf(120.00))
+                                .build()
+                ))
+                .payments(List.of(
+                        SalePaymentCreateDTO.builder()
+                                .paymentMethod(PaymentMethod.CASH)
+                                .amount(BigDecimal.valueOf(120.00))
+                                .build()
+                ))
+                .build();
+
+        var originalSaleResponse = createSaleUseCase.execute(originalSale, testPrincipal);
+
+        // AÇÃO: Trocar com complemento parcial de 10 (preço seria 140, mas cliente paga só 10 a mais)
+        ProductExchangeRequestDTO exchangeRequest = ProductExchangeRequestDTO.builder()
+                .originalSaleId(originalSaleResponse.getId())
+                .itemsToReturn(List.of(
+                        ProductExchangeRequestDTO.ItemToReturnDTO.builder()
+                                .saleItemId(originalSaleResponse.getItems().get(0).getId())
+                                .quantityToReturn(1)
+                                .build()
+                ))
+                .newItems(List.of(
+                        ProductExchangeRequestDTO.NewItemDTO.builder()
+                                .variantId(variantG.getId())
+                                .quantity(1)
+                                .unitPrice(BigDecimal.valueOf(130.00)) // Preço ajustado: 120 + 10
+                                .build()
+                ))
+                .newSalePayments(List.of(
+                        SalePaymentCreateDTO.builder()
+                                .paymentMethod(PaymentMethod.CASH)
+                                .amount(BigDecimal.valueOf(10.00)) // Complemento parcial
+                                .build()
+                ))
+                .reason(ExchangeReason.PREFERENCIA)
+                .build();
+
+        var exchangeResponse = exchangeProductUseCase.execute(exchangeRequest, testPrincipal);
+
+        // VALIDAÇÃO
+        List<Transaction> allTransactions = transactionRepository
+                .findByAccountUserEmail(testUser.getEmail());
+
+        BigDecimal totalRevenue = allTransactions.stream()
+                .filter(t -> t.getType() == TransactionType.INCOME)
+                .filter(t -> t.getDetail() == TransactionDetail.SALE)
+                .map(Transaction::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal cogsReversals = allTransactions.stream()
+                .filter(t -> t.getType() == TransactionType.INCOME)
+                .filter(t -> t.getDetail() == TransactionDetail.COGS_REVERSAL)
+                .map(Transaction::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal cogsExpenses = allTransactions.stream()
+                .filter(t -> t.getType() == TransactionType.EXPENSE)
+                .filter(t -> t.getDetail() == TransactionDetail.COST_OF_GOODS_SOLD)
+                .map(Transaction::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal netCOGS = cogsExpenses.add(cogsReversals);
+
+        // Receita: 120 + 10 = 130
+        assertThat(totalRevenue).isEqualByComparingTo(BigDecimal.valueOf(130.00));
+        assertThat(netCOGS).isEqualByComparingTo(BigDecimal.valueOf(-100.00));
+        
+        BigDecimal finalProfit = totalRevenue.add(netCOGS);
+        assertThat(finalProfit)
+                .as("Lucro com complemento parcial: 130 - 100 = 30")
+                .isEqualByComparingTo(BigDecimal.valueOf(30.00));
+    }
+
+    @Test
+    @DisplayName("Cenário 7: Troca com múltiplos itens")
+    public void testScenario7_ExchangeMultipleItems() {
+        // SETUP: Produto A (custo 150, venda 220) → Produto B (custo 70) + Produto C (custo 90)
+        ProductVariant variantA = createProductWithVariant("Produto A", "A-7", BigDecimal.valueOf(150.00), 10);
+        ProductVariant variantB = createProductWithVariant("Produto B", "B-2", BigDecimal.valueOf(70.00), 10);
+        ProductVariant variantC = createProductWithVariant("Produto C", "C-2", BigDecimal.valueOf(90.00), 10);
+
+        // Venda Original
+        SaleCreateDTO originalSale = SaleCreateDTO.builder()
+                .date(LocalDateTime.now())
+                .items(List.of(
+                        SaleItemCreateDTO.builder()
+                                .variantId(variantA.getId())
+                                .quantity(1)
+                                .unitPrice(BigDecimal.valueOf(220.00))
+                                .build()
+                ))
+                .payments(List.of(
+                        SalePaymentCreateDTO.builder()
+                                .paymentMethod(PaymentMethod.CASH)
+                                .amount(BigDecimal.valueOf(220.00))
+                                .build()
+                ))
+                .build();
+
+        var originalSaleResponse = createSaleUseCase.execute(originalSale, testPrincipal);
+
+        // AÇÃO: Trocar por 2 produtos diferentes
+        ProductExchangeRequestDTO exchangeRequest = ProductExchangeRequestDTO.builder()
+                .originalSaleId(originalSaleResponse.getId())
+                .itemsToReturn(List.of(
+                        ProductExchangeRequestDTO.ItemToReturnDTO.builder()
+                                .saleItemId(originalSaleResponse.getItems().get(0).getId())
+                                .quantityToReturn(1)
+                                .build()
+                ))
+                .newItems(List.of(
+                        ProductExchangeRequestDTO.NewItemDTO.builder()
+                                .variantId(variantB.getId())
+                                .quantity(1)
+                                .unitPrice(BigDecimal.valueOf(110.00))
+                                .build(),
+                        ProductExchangeRequestDTO.NewItemDTO.builder()
+                                .variantId(variantC.getId())
+                                .quantity(1)
+                                .unitPrice(BigDecimal.valueOf(110.00))
+                                .build()
+                ))
+                .newSalePayments(List.of())
+                .reason(ExchangeReason.PREFERENCIA)
+                .build();
+
+        var exchangeResponse = exchangeProductUseCase.execute(exchangeRequest, testPrincipal);
+
+        // VALIDAÇÃO
+        List<Transaction> allTransactions = transactionRepository
+                .findByAccountUserEmail(testUser.getEmail());
+
+        BigDecimal totalRevenue = allTransactions.stream()
+                .filter(t -> t.getType() == TransactionType.INCOME)
+                .filter(t -> t.getDetail() == TransactionDetail.SALE)
+                .map(Transaction::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal cogsReversals = allTransactions.stream()
+                .filter(t -> t.getType() == TransactionType.INCOME)
+                .filter(t -> t.getDetail() == TransactionDetail.COGS_REVERSAL)
+                .map(Transaction::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal cogsExpenses = allTransactions.stream()
+                .filter(t -> t.getType() == TransactionType.EXPENSE)
+                .filter(t -> t.getDetail() == TransactionDetail.COST_OF_GOODS_SOLD)
+                .map(Transaction::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal netCOGS = cogsExpenses.add(cogsReversals);
+
+        // Receita: 220 (permanece)
+        assertThat(totalRevenue).isEqualByComparingTo(BigDecimal.valueOf(220.00));
+        // COGS: reverso +150, novos -(70+90) = -160
+        assertThat(netCOGS).isEqualByComparingTo(BigDecimal.valueOf(-160.00));
+        
+        BigDecimal finalProfit = totalRevenue.add(netCOGS);
+        assertThat(finalProfit)
+                .as("Lucro com múltiplos itens: 220 - 160 = 60")
+                .isEqualByComparingTo(BigDecimal.valueOf(60.00));
+    }
+
+    // Helper method para criar produtos com variantes para os testes
+    private ProductVariant createProductWithVariant(String productName, String sku, BigDecimal cost, int stock) {
+        var category = categoryRepository.findAll().stream()
+                .findFirst()
+                .orElseGet(() -> categoryRepository.save(
+                        com.jaoow.helmetstore.model.Category.builder()
+                                .name("Test Category")
+                                .inventory(testInventory)
+                                .build()
+                ));
+
+        Product product = Product.builder()
+                .model(productName)
+                .color("Standard")
+                .category(category)
+                .inventory(testInventory)
+                .imgUrl(null)
+                .build();
+        product = productRepository.save(product);
+
+        ProductVariant variant = ProductVariant.builder()
+                .product(product)
+                .sku(sku)
+                .size("M")
+                .build();
+        variant = productVariantRepository.save(variant);
+
+        InventoryItem item = InventoryItem.builder()
+                .inventory(testInventory)
+                .productVariant(variant)
+                .quantity(stock)
+                .averageCost(cost)
+                .build();
+        inventoryItemRepository.save(item);
+
+        return variant;
+    }
 }
