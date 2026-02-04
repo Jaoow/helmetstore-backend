@@ -9,6 +9,7 @@ import com.jaoow.helmetstore.model.Sale;
 import com.jaoow.helmetstore.model.balance.*;
 import com.jaoow.helmetstore.model.inventory.InventoryItem;
 import com.jaoow.helmetstore.model.sale.SaleItem;
+import com.jaoow.helmetstore.model.sale.SalePayment;
 import com.jaoow.helmetstore.repository.InventoryItemRepository;
 import com.jaoow.helmetstore.repository.TransactionRepository;
 import lombok.RequiredArgsConstructor;
@@ -54,7 +55,6 @@ public class TransactionService {
                 ? AccountType.CASH
                 : AccountType.BANK;
 
-
         // All manual transactions affect cash (they represent real money movement)
         TransactionDetail detail = transaction.getDetail();
 
@@ -68,10 +68,24 @@ public class TransactionService {
         cacheInvalidationService.invalidateFinancialCaches();
     }
 
+    /**
+     * Records transactions from a sale.
+     * Only creates transactions for payments that haven't been registered yet.
+     * Uses Transaction.salePaymentId for efficient duplicate prevention.
+     *
+     * @param sale The sale to record transactions for
+     * @param principal The user principal
+     */
     @Transactional
     public void recordTransactionFromSale(Sale sale, Principal principal) {
         LocalDateTime date = sale.getDate();
-        sale.getPayments().forEach(payment -> {
+
+        // Process only payments that haven't generated a transaction yet
+        for (SalePayment payment : sale.getPayments()) {
+            // Skip payments that already have a transaction registered
+            if (transactionRepository.existsByReferenceSubId(payment.getId())) {
+                continue;
+            }
 
             // Determine which wallet receives the money (Cash drawer or Bank account)
             AccountType walletDest = (payment.getPaymentMethod() == PaymentMethod.CASH)
@@ -86,22 +100,23 @@ public class TransactionService {
                     .date(date)
                     .type(TransactionType.INCOME)
                     .detail(TransactionDetail.SALE)
-                    .description(SALE_REFERENCE_PREFIX
-                            + formatProductVariantName(
+                    .description("Venda #" + sale.getId()
+                            + " - " + formatProductVariantName(
                                     sale.getItems().getFirst().getProductVariant())
                             + " (" + payment.getPaymentMethod() + ")")
-                    .amount(payment.getAmount()) // ✅ FIXED: Use proportional profit, not payment amount
+                    .amount(payment.getAmount())
                     .paymentMethod(payment.getPaymentMethod())
                     .reference(SALE_REFERENCE_PREFIX + sale.getId())
+                    .referenceSubId(payment.getId())  // Prevents duplicates in exchanges
                     .account(account)
                     // DOUBLE-ENTRY LEDGER FLAGS
                     .affectsProfit(true)  // Revenue increases profit
-                    .affectsCash(true)    // Revenue increases cash/bank balance (tracked separately in cash flow)
+                    .affectsCash(true)    // Revenue increases cash/bank balance
                     .walletDestination(walletDest)
                     .build();
 
             transactionRepository.save(revenueTx);
-        });
+        }
 
         BigDecimal totalCostOfGoods = BigDecimal.ZERO;
 
@@ -134,15 +149,15 @@ public class TransactionService {
                     .date(date)
                     .type(TransactionType.EXPENSE)
                     .detail(TransactionDetail.COST_OF_GOODS_SOLD)
-                    .description("Cost of Goods Sold - Sale #" + sale.getId())
+                    .description("Custo de Mercadoria - Venda #" + sale.getId())
                     .amount(totalCostOfGoods.negate()) // Negative value (expense)
-                    .paymentMethod(PaymentMethod.CASH) // Placeholder (irrelevant for COGS)
+                    .paymentMethod(PaymentMethod.CASH) // Placeholder
                     .reference(SALE_REFERENCE_PREFIX + sale.getId())
                     .account(systemAccount)
                     // DOUBLE-ENTRY LEDGER FLAGS
                     .affectsProfit(true)  // COGS REDUCES profit
                     .affectsCash(false)   // COGS does NOT change cash (already spent)
-                    .walletDestination(null) // No wallet involved (accounting entry only)
+                    .walletDestination(null) // No wallet involved
                     .build();
 
             transactionRepository.save(cogsTx);
@@ -166,13 +181,11 @@ public class TransactionService {
                 .date(purchaseOrder.getDate().atStartOfDay())
                 .type(TransactionType.EXPENSE)
                 .detail(TransactionDetail.INVENTORY_PURCHASE)
-                .description(PURCHASE_ORDER_REFERENCE_PREFIX + purchaseOrder.getOrderNumber())
-                .amount(purchaseOrder.getTotalAmount().negate()) // FIX: Negate expense amount
+                .description("Pedido de Compra #" + purchaseOrder.getOrderNumber())
+                .amount(purchaseOrder.getTotalAmount().negate())
                 .paymentMethod(purchaseOrder.getPaymentMethod())
                 .reference(PURCHASE_ORDER_REFERENCE_PREFIX + purchaseOrder.getId())
                 .account(account)
-                // DOUBLE-ENTRY LEDGER FLAGS
-                // Stock purchase affects cash (money out) but NOT profit (it's an asset transfer)
                 .affectsProfit(false)  // Buying stock doesn't reduce profit
                 .affectsCash(true)     // But it does reduce available cash
                 .walletDestination(walletDest)
@@ -236,13 +249,14 @@ public class TransactionService {
     @Transactional
     public void removeTransactionLinkedToPurchaseOrder(PurchaseOrder purchaseOrder) {
         String reference = PURCHASE_ORDER_REFERENCE_PREFIX + purchaseOrder.getId();
-        Transaction transaction = transactionRepository.findByReference(reference)
-                .orElseThrow(() -> new IllegalArgumentException(
-                        "Transaction not found for purchase order ID: "
-                                + purchaseOrder.getId()));
+        List<Transaction> transactions = transactionRepository.findAllByReference(reference);
 
-        transactionRepository.delete(transaction);
-        // Invalidate financial caches after removing transaction linked to purchase order
+        if (transactions.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "Transaction not found for purchase order ID: " + purchaseOrder.getId());
+        }
+
+        transactionRepository.deleteAll(transactions);
         cacheInvalidationService.invalidateFinancialCaches();
     }
 
@@ -262,12 +276,11 @@ public class TransactionService {
                 .type(TransactionType.INCOME)
                 .detail(TransactionDetail.REFUND)
                 .description("Reembolso cancelamento: " + itemDescription + " - Pedido #" + purchaseOrder.getOrderNumber())
-                .amount(refundAmount) // Positive amount (refund)
+                .amount(refundAmount)
                 .paymentMethod(purchaseOrder.getPaymentMethod())
-                .reference("REFUND_" + PURCHASE_ORDER_REFERENCE_PREFIX + purchaseOrder.getId() + "_" + System.currentTimeMillis())
+                .reference("REFUND_" + PURCHASE_ORDER_REFERENCE_PREFIX + purchaseOrder.getId())
                 .account(account)
-                // DOUBLE-ENTRY LEDGER FLAGS
-                .affectsProfit(false)  // Refund doesn't affect profit (it's returning an expense)
+                .affectsProfit(false)  // Refund doesn't affect profit
                 .affectsCash(true)     // Refund increases cash/bank balance
                 .walletDestination(walletDest)
                 .build();
@@ -288,7 +301,6 @@ public class TransactionService {
         }
 
         transactionRepository.deleteAll(transactions);
-        // Invalidate financial caches after removing transaction linked to sale
         cacheInvalidationService.invalidateFinancialCaches();
     }
 

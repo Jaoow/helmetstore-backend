@@ -118,4 +118,17 @@ public class Sale {
     @Column(name = "refund_transaction_id")
     private Long refundTransactionId;
 
+    // ============================================================================
+    // EXCHANGE FIELDS (TROCA)
+    // ============================================================================
+
+    /**
+     * Flag indicando se esta venda é derivada de uma troca.
+     * Quando true, esta venda NÃO gera transações financeiras próprias,
+     * pois representa continuação/reapontamento da venda original.
+     */
+    @Column(name = "is_derived_from_exchange", nullable = false)
+    @Builder.Default
+    private Boolean isDerivedFromExchange = false;
+
 }

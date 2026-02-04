@@ -109,5 +109,6 @@ public class SaleCalculationHelper {
         saleItem.setUnitProfit(unitProfit);
         saleItem.setTotalItemPrice(totalItemPrice);
         saleItem.setTotalItemProfit(totalItemProfit);
+        saleItem.setCostBasisAtSale(inventoryItem.getAverageCost()); // Snapshot do custo no momento da venda
     }
 }

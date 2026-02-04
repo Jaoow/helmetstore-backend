@@ -9,14 +9,20 @@ public enum SaleStatus {
      * Completed and confirmed sale
      */
     COMPLETED,
-    
+
     /**
      * Fully cancelled sale
      */
     CANCELLED,
-    
+
     /**
      * Partially cancelled sale (some items were cancelled)
      */
-    PARTIALLY_CANCELLED
+    PARTIALLY_CANCELLED,
+
+    /**
+     * Sale with exchanged items (not a cancellation, but an adjustment)
+     * The original sale remains as part of exchange history
+     */
+    EXCHANGED
 }

@@ -59,6 +59,22 @@ public class SaleCancellationRequestDTO {
      */
     private PaymentMethod refundPaymentMethod;
 
+    /**
+     * Indica se este cancelamento faz parte de uma troca
+     * Se true, a venda será marcada como EXCHANGED ao invés de CANCELLED
+     */
+    @Builder.Default
+    private Boolean isPartOfExchange = false;
+
+    /**
+     * Indica se este cancelamento tem impacto financeiro real.
+     *
+     * - true (padrão): Tem impacto financeiro - gera REFUND e COGS_REVERSAL
+     * - false: Apenas operacional (parte de troca) - só devolve estoque
+     */
+    @Builder.Default
+    private Boolean hasFinancialImpact = true;
+
     @Getter
     @Setter
     @NoArgsConstructor

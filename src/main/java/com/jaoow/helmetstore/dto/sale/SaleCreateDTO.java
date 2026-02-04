@@ -25,4 +25,12 @@ public class SaleCreateDTO {
     @NotEmpty(message = "Deve haver pelo menos um método de pagamento")
     @Valid
     private List<SalePaymentCreateDTO> payments;
+
+    /**
+     * Flag indicando se esta venda é derivada de uma troca.
+     * Quando true, NÃO gera transações financeiras (REVENUE/COGS),
+     * pois representa reapontamento da venda original.
+     */
+    @Builder.Default
+    private Boolean isDerivedFromExchange = false;
 }

@@ -19,9 +19,25 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
 
        Optional<Transaction> findByIdAndAccountUserEmail(Long id, String accountUserEmail);
 
+       // Reference-based queries
        Optional<Transaction> findByReference(String reference);
-
        List<Transaction> findAllByReference(String reference);
+
+       /**
+        * Check if transaction exists for specific sub-reference ID.
+        * Used for duplicate prevention in exchange scenarios.
+        */
+       boolean existsByReferenceSubId(Long referenceSubId);
+
+       /**
+        * Check if refund transaction already exists for a sale.
+        * Used for duplicate prevention when cancelling sales.
+        */
+       boolean existsByReference(String reference);
+
+       // ============================================================================
+       // USER TRANSACTIONS QUERIES
+       // ============================================================================
 
        // Versão otimizada com hints e FETCH JOIN
        @QueryHints(@QueryHint(name = "org.hibernate.readOnly", value = "true"))
