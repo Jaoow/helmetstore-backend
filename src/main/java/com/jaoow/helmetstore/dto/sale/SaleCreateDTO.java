@@ -30,17 +30,6 @@ public class SaleCreateDTO {
      * Flag indicando se esta venda é derivada de uma troca.
      * Quando true, NÃO gera transações financeiras (REVENUE/COGS),
      * pois representa reapontamento da venda original.
-     *
-     * ⚠️ ATENÇÃO - REGRA DE OURO:
-     * Esta flag DEVE ser true SOMENTE quando a venda é criada por ExchangeProductUseCase.
-     * NUNCA defina manualmente como true em outros contextos.
-     *
-     * Risco: Se definida incorretamente, pode causar:
-     * - Falta de registro de transações financeiras
-     * - Descasamento contábil
-     * - Caixa incorreto
-     *
-     * Contextos válidos: APENAS dentro de ExchangeProductUseCase.buildNewSaleDTO()
      */
     @Builder.Default
     private Boolean isDerivedFromExchange = false;

@@ -71,9 +71,6 @@ public class SaleCancellationRequestDTO {
      *
      * - true (padrão): Tem impacto financeiro - gera REFUND e COGS_REVERSAL
      * - false: Apenas operacional (parte de troca) - só devolve estoque
-     *
-     * ⚠️ REGRA: Em trocas sem reembolso real, deve ser false.
-     * O dinheiro já está contabilizado na venda original.
      */
     @Builder.Default
     private Boolean hasFinancialImpact = true;
