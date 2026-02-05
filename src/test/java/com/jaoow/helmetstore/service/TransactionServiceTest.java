@@ -1,6 +1,7 @@
 package com.jaoow.helmetstore.service;
 
 import com.jaoow.helmetstore.dto.balance.TransactionCreateDTO;
+import com.jaoow.helmetstore.dto.balance.FinancialSummaryDTO;
 import com.jaoow.helmetstore.exception.AccountNotFoundException;
 import com.jaoow.helmetstore.model.Product;
 import com.jaoow.helmetstore.model.ProductVariant;
@@ -14,6 +15,15 @@ import com.jaoow.helmetstore.model.sale.SaleItem;
 import com.jaoow.helmetstore.model.sale.SalePayment;
 import com.jaoow.helmetstore.repository.InventoryItemRepository;
 import com.jaoow.helmetstore.repository.TransactionRepository;
+import com.jaoow.helmetstore.usecase.transaction.CalculateFinancialMetricsUseCase;
+import com.jaoow.helmetstore.usecase.transaction.CreateManualTransactionUseCase;
+import com.jaoow.helmetstore.usecase.transaction.CreateRefundTransactionUseCase;
+import com.jaoow.helmetstore.usecase.transaction.DeleteTransactionUseCase;
+import com.jaoow.helmetstore.usecase.transaction.RecordPurchaseOrderTransactionUseCase;
+import com.jaoow.helmetstore.usecase.transaction.RecordSaleTransactionUseCase;
+import com.jaoow.helmetstore.usecase.transaction.RemovePurchaseOrderTransactionsUseCase;
+import com.jaoow.helmetstore.usecase.transaction.RemoveSaleTransactionsUseCase;
+import com.jaoow.helmetstore.usecase.transaction.UpdateTransactionUseCase;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -60,7 +70,17 @@ class TransactionServiceTest {
     @Mock
     private ProfitCalculationService profitCalculationService;
 
-    @InjectMocks
+    // Use Cases - will be created with real instances using mocked dependencies
+    private CreateManualTransactionUseCase createManualTransactionUseCase;
+    private RecordSaleTransactionUseCase recordSaleTransactionUseCase;
+    private RecordPurchaseOrderTransactionUseCase recordPurchaseOrderTransactionUseCase;
+    private UpdateTransactionUseCase updateTransactionUseCase;
+    private DeleteTransactionUseCase deleteTransactionUseCase;
+    private CreateRefundTransactionUseCase createRefundTransactionUseCase;
+    private RemoveSaleTransactionsUseCase removeSaleTransactionsUseCase;
+    private RemovePurchaseOrderTransactionsUseCase removePurchaseOrderTransactionsUseCase;
+    private CalculateFinancialMetricsUseCase calculateFinancialMetricsUseCase;
+
     private TransactionService transactionService;
 
     @Mock
@@ -72,6 +92,40 @@ class TransactionServiceTest {
 
     @BeforeEach
     void setUp() {
+        // Initialize use cases with mocked dependencies
+        createManualTransactionUseCase = new CreateManualTransactionUseCase(
+                transactionRepository, accountService, modelMapper, cacheInvalidationService);
+        recordSaleTransactionUseCase = new RecordSaleTransactionUseCase(
+                transactionRepository, accountService, inventoryItemRepository, cacheInvalidationService);
+        recordPurchaseOrderTransactionUseCase = new RecordPurchaseOrderTransactionUseCase(
+                transactionRepository, accountService, cacheInvalidationService);
+        updateTransactionUseCase = new UpdateTransactionUseCase(
+                transactionRepository, accountService, modelMapper, cacheInvalidationService);
+        deleteTransactionUseCase = new DeleteTransactionUseCase(
+                transactionRepository, cacheInvalidationService);
+        createRefundTransactionUseCase = new CreateRefundTransactionUseCase(
+                transactionRepository, accountService, cacheInvalidationService);
+        removeSaleTransactionsUseCase = new RemoveSaleTransactionsUseCase(
+                transactionRepository, cacheInvalidationService);
+        removePurchaseOrderTransactionsUseCase = new RemovePurchaseOrderTransactionsUseCase(
+                transactionRepository, cacheInvalidationService);
+        calculateFinancialMetricsUseCase = new CalculateFinancialMetricsUseCase(
+                transactionRepository, profitCalculationService);
+
+        // Initialize TransactionService with use cases
+        transactionService = new TransactionService(
+                transactionRepository,
+                createManualTransactionUseCase,
+                recordSaleTransactionUseCase,
+                recordPurchaseOrderTransactionUseCase,
+                updateTransactionUseCase,
+                deleteTransactionUseCase,
+                createRefundTransactionUseCase,
+                removeSaleTransactionsUseCase,
+                removePurchaseOrderTransactionsUseCase,
+                calculateFinancialMetricsUseCase
+        );
+
         testUser = User.builder()
                 .id(1L)
                 .email("test@example.com")
@@ -673,7 +727,7 @@ class TransactionServiceTest {
                     .thenReturn(transactions);
 
             // When
-            TransactionService.FinancialSummary summary = transactionService.calculateFinancialSummary(principal);
+            FinancialSummaryDTO summary = transactionService.calculateFinancialSummary(principal);
 
             // Then
             assertThat(summary.getProfit()).isEqualByComparingTo(expectedProfit);
@@ -699,7 +753,7 @@ class TransactionServiceTest {
                     .thenReturn(transactions);
 
             // When
-            TransactionService.FinancialSummary summary = transactionService.calculateFinancialSummary(principal);
+            FinancialSummaryDTO summary = transactionService.calculateFinancialSummary(principal);
 
             // Then
             assertThat(summary.getCashFlow()).isGreaterThan(summary.getProfit());

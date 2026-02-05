@@ -4,6 +4,7 @@ import com.jaoow.helmetstore.dto.balance.AccountInfo;
 import com.jaoow.helmetstore.dto.balance.AvailableMonthDTO;
 import com.jaoow.helmetstore.dto.balance.BalanceConversionDTO;
 import com.jaoow.helmetstore.dto.balance.CashFlowSummaryDTO;
+import com.jaoow.helmetstore.dto.balance.FinancialSummaryDTO;
 import com.jaoow.helmetstore.dto.balance.MonthlyCashFlowDTO;
 import com.jaoow.helmetstore.dto.balance.MonthlyProfitDTO;
 import com.jaoow.helmetstore.dto.balance.ProfitSummaryDTO;
@@ -45,7 +46,7 @@ public class AccountController {
     }
 
     @GetMapping("/financial-summary")
-    public TransactionService.FinancialSummary getFinancialSummary(Principal principal) {
+    public FinancialSummaryDTO getFinancialSummary(Principal principal) {
         return transactionService.calculateFinancialSummary(principal);
     }
 

@@ -52,7 +52,7 @@ public class AccountService {
                 .collect(Collectors.toList());
     }
 
-    Optional<Account> findAccountByPaymentMethodAndUser(PaymentMethod paymentMethod, Principal principal) {
+    public Optional<Account> findAccountByPaymentMethodAndUser(PaymentMethod paymentMethod, Principal principal) {
         if (paymentMethod == null || principal == null || principal.getName() == null) {
             return Optional.empty();
         }
