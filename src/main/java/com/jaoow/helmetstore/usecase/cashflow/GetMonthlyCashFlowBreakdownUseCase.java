@@ -1,6 +1,5 @@
-package com.jaoow.helmetstore.service;
+package com.jaoow.helmetstore.usecase.cashflow;
 
-import com.jaoow.helmetstore.dto.balance.CashFlowSummaryDTO;
 import com.jaoow.helmetstore.dto.balance.MonthlyCashFlowDTO;
 import com.jaoow.helmetstore.dto.balance.TransactionInfo;
 import com.jaoow.helmetstore.model.balance.AccountType;
@@ -10,61 +9,40 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
 import org.springframework.cache.annotation.Cacheable;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
-import java.security.Principal;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
-@Service
+/**
+ * Use Case: Get monthly cash flow breakdown for all months
+ * 
+ * Responsibilities:
+ * - Calculate cash flow metrics for each month
+ * - Track cumulative account balances month by month
+ * - Include transaction details for each month
+ * - Cache results for performance
+ * 
+ * PERFORMANCE OPTIMIZATION:
+ * - Loads all transactions once instead of querying per month
+ * - Calculates cumulative balances incrementally
+ */
+@Component
 @RequiredArgsConstructor
 @Slf4j
-public class CashFlowService {
+public class GetMonthlyCashFlowBreakdownUseCase {
 
     private final TransactionRepository transactionRepository;
     private final ModelMapper modelMapper;
-    private final AccountService accountService;
-
-    @Cacheable(value = com.jaoow.helmetstore.cache.CacheNames.CASH_FLOW_SUMMARY, key = "#principal.name")
-    public CashFlowSummaryDTO getCashFlowSummary(Principal principal) {
-        String userEmail = principal.getName();
-
-        // ============================================================================
-        // PERFORMANCE OPTIMIZATION: Use SQL aggregations - NO entity loading!
-        // ============================================================================
-        // Before: Load ALL transactions (6000+ entities) → 1300ms
-        // After: 3 SQL aggregations only → ~200ms
-        // Improvement: 85% faster, 99% less memory
-
-        BigDecimal bankBalance = accountService.calculateAccountBalanceByType(userEmail, AccountType.BANK);
-        BigDecimal cashBalance = accountService.calculateAccountBalanceByType(userEmail, AccountType.CASH);
-        BigDecimal totalBalance = bankBalance.add(cashBalance);
-
-        // Pure SQL aggregations - instant!
-        BigDecimal totalIncome = transactionRepository.calculateTotalCashIncome(userEmail);
-        BigDecimal totalExpense = transactionRepository.calculateTotalCashExpense(userEmail);
-        BigDecimal totalCashFlow = transactionRepository.calculateTotalCashFlow(userEmail);
-
-        // OPTIMIZATION: Don't load monthly breakdown in summary - it's expensive!
-        // Frontend should call /cash-flow/monthly separately if needed
-
-        return CashFlowSummaryDTO.builder()
-                .totalBankBalance(bankBalance)
-                .totalCashBalance(cashBalance)
-                .totalBalance(totalBalance)
-                .totalIncome(totalIncome)
-                .totalExpense(totalExpense)
-                .totalCashFlow(totalCashFlow)
-                .monthlyBreakdown(null) // Lazy load via separate endpoint
-                .build();
-    }
 
     @Cacheable(value = com.jaoow.helmetstore.cache.CacheNames.MONTHLY_CASH_FLOW, key = "#userEmail")
-    public List<MonthlyCashFlowDTO> getMonthlyCashFlowBreakdown(String userEmail) {
+    public List<MonthlyCashFlowDTO> execute(String userEmail) {
+        log.debug("Executing GetMonthlyCashFlowBreakdownUseCase for user: {}", userEmail);
+
         // PERFORMANCE: Get all transactions ONCE instead of querying per month
         List<Transaction> allTransactions = transactionRepository.findByAccountUserEmail(userEmail);
 
@@ -137,46 +115,6 @@ public class CashFlowService {
         }
 
         return result;
-    }
-
-    @Cacheable(value = com.jaoow.helmetstore.cache.CacheNames.MONTHLY_CASH_FLOW, key = "#userEmail + '-' + #yearMonth")
-    public MonthlyCashFlowDTO getMonthlyCashFlow(String userEmail, YearMonth yearMonth) {
-        LocalDateTime startOfMonth = yearMonth.atDay(1).atStartOfDay();
-        LocalDateTime startOfNextMonth = yearMonth.plusMonths(1).atDay(1).atStartOfDay();
-        LocalDateTime endOfMonth = yearMonth.atEndOfMonth().atTime(23, 59, 59);
-
-        // ============================================================================
-        // PERFORMANCE: Use SQL aggregations instead of loading entities
-        // ============================================================================
-        BigDecimal monthlyCashFlow = transactionRepository.calculateCashFlowByDateRange(
-                userEmail, startOfMonth, startOfNextMonth);
-
-        // Calculate cumulative balances up to end of this month using SQL aggregation
-        BigDecimal cumulativeBankBalance = transactionRepository.calculateWalletBalanceUpToDate(
-                userEmail, AccountType.BANK, endOfMonth);
-        BigDecimal cumulativeCashBalance = transactionRepository.calculateWalletBalanceUpToDate(
-                userEmail, AccountType.CASH, endOfMonth);
-
-        // Calculate monthly income/expense with SQL aggregations
-        BigDecimal monthlyIncome = transactionRepository.calculateCashIncomeByDateRange(
-                userEmail, startOfMonth, startOfNextMonth);
-        BigDecimal monthlyExpense = transactionRepository.calculateCashExpenseByDateRange(
-                userEmail, startOfMonth, startOfNextMonth);
-
-        // Get transactions for detailed breakdown (only if needed)
-        List<Transaction> monthlyTransactions = transactionRepository
-                .findByAccountUserEmailAndDateRange(userEmail, startOfMonth, startOfNextMonth);
-
-        return MonthlyCashFlowDTO.builder()
-                .month(yearMonth)
-                .bankAccountBalance(cumulativeBankBalance)
-                .cashAccountBalance(cumulativeCashBalance)
-                .totalBalance(cumulativeBankBalance.add(cumulativeCashBalance))
-                .monthlyIncome(monthlyIncome)
-                .monthlyExpense(monthlyExpense)
-                .monthlyCashFlow(monthlyCashFlow)
-                .transactions(convertToTransactionInfo(monthlyTransactions))
-                .build();
     }
 
     private List<TransactionInfo> convertToTransactionInfo(List<Transaction> transactions) {

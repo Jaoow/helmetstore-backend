@@ -4,7 +4,7 @@ import com.jaoow.helmetstore.cache.CacheNames;
 import com.jaoow.helmetstore.dto.balance.FinancialSummaryDTO;
 import com.jaoow.helmetstore.model.balance.Transaction;
 import com.jaoow.helmetstore.repository.TransactionRepository;
-import com.jaoow.helmetstore.service.ProfitCalculationService;
+import com.jaoow.helmetstore.helper.ProfitCalculationHelper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Component;
@@ -27,7 +27,7 @@ import java.util.List;
 public class CalculateFinancialMetricsUseCase {
 
     private final TransactionRepository transactionRepository;
-    private final ProfitCalculationService profitCalculationService;
+    private final ProfitCalculationHelper profitCalculationHelper;
 
     /**
      * Calculate total Net Profit (TRUE business profitability).
@@ -49,7 +49,7 @@ public class CalculateFinancialMetricsUseCase {
      */
     @Cacheable(value = CacheNames.PROFIT_CALCULATION, key = "#principal.name")
     public BigDecimal calculateProfit(Principal principal) {
-        return profitCalculationService.calculateTotalNetProfit(principal.getName());
+        return profitCalculationHelper.calculateTotalNetProfit(principal.getName());
     }
 
     /**

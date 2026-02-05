@@ -15,6 +15,7 @@ import com.jaoow.helmetstore.model.sale.SaleItem;
 import com.jaoow.helmetstore.model.sale.SalePayment;
 import com.jaoow.helmetstore.repository.InventoryItemRepository;
 import com.jaoow.helmetstore.repository.TransactionRepository;
+import com.jaoow.helmetstore.helper.ProfitCalculationHelper;
 import com.jaoow.helmetstore.usecase.transaction.CalculateFinancialMetricsUseCase;
 import com.jaoow.helmetstore.usecase.transaction.CreateManualTransactionUseCase;
 import com.jaoow.helmetstore.usecase.transaction.CreateRefundTransactionUseCase;
@@ -68,7 +69,7 @@ class TransactionServiceTest {
     private InventoryItemRepository inventoryItemRepository;
 
     @Mock
-    private ProfitCalculationService profitCalculationService;
+    private ProfitCalculationHelper profitCalculationHelper;
 
     // Use Cases - will be created with real instances using mocked dependencies
     private CreateManualTransactionUseCase createManualTransactionUseCase;
@@ -110,7 +111,7 @@ class TransactionServiceTest {
         removePurchaseOrderTransactionsUseCase = new RemovePurchaseOrderTransactionsUseCase(
                 transactionRepository, cacheInvalidationService);
         calculateFinancialMetricsUseCase = new CalculateFinancialMetricsUseCase(
-                transactionRepository, profitCalculationService);
+                transactionRepository, profitCalculationHelper);
 
         // Initialize TransactionService with use cases
         transactionService = new TransactionService(
@@ -153,7 +154,7 @@ class TransactionServiceTest {
         @DisplayName("Deve calcular lucro zero quando não há transações")
         void shouldCalculateZeroProfitWithNoTransactions() {
             // Given
-            when(profitCalculationService.calculateTotalNetProfit("test@example.com"))
+            when(profitCalculationHelper.calculateTotalNetProfit("test@example.com"))
                     .thenReturn(BigDecimal.ZERO);
 
             // When
@@ -161,7 +162,7 @@ class TransactionServiceTest {
 
             // Then
             assertThat(profit).isEqualByComparingTo(BigDecimal.ZERO);
-            verify(profitCalculationService).calculateTotalNetProfit("test@example.com");
+            verify(profitCalculationHelper).calculateTotalNetProfit("test@example.com");
         }
 
         @Test
@@ -169,7 +170,7 @@ class TransactionServiceTest {
         void shouldCalculateProfitAsRevenueMinusCOGS() {
             // Given: Revenue de 1000 - COGS de 400 = Lucro de 600
             BigDecimal expectedProfit = new BigDecimal("600.00");
-            when(profitCalculationService.calculateTotalNetProfit("test@example.com"))
+            when(profitCalculationHelper.calculateTotalNetProfit("test@example.com"))
                     .thenReturn(expectedProfit);
 
             // When
@@ -184,7 +185,7 @@ class TransactionServiceTest {
         void shouldCalculateNegativeProfitWhenExpensesExceedRevenue() {
             // Given: Prejuízo de 500
             BigDecimal expectedProfit = new BigDecimal("-500.00");
-            when(profitCalculationService.calculateTotalNetProfit("test@example.com"))
+            when(profitCalculationHelper.calculateTotalNetProfit("test@example.com"))
                     .thenReturn(expectedProfit);
 
             // When
@@ -204,7 +205,7 @@ class TransactionServiceTest {
             // - Despesa fixa: R$ 200
             // Lucro Total = 600 + 300 - 200 = 700
             BigDecimal expectedProfit = new BigDecimal("700.00");
-            when(profitCalculationService.calculateTotalNetProfit("test@example.com"))
+            when(profitCalculationHelper.calculateTotalNetProfit("test@example.com"))
                     .thenReturn(expectedProfit);
 
             // When
@@ -717,7 +718,7 @@ class TransactionServiceTest {
             BigDecimal expectedProfit = new BigDecimal("1500.00");
             BigDecimal expectedCashFlow = new BigDecimal("3000.00");
 
-            when(profitCalculationService.calculateTotalNetProfit("test@example.com"))
+            when(profitCalculationHelper.calculateTotalNetProfit("test@example.com"))
                     .thenReturn(expectedProfit);
 
             List<Transaction> transactions = Arrays.asList(
@@ -743,7 +744,7 @@ class TransactionServiceTest {
             BigDecimal expectedProfit = new BigDecimal("1000.00");
             BigDecimal expectedCashFlow = new BigDecimal("6000.00");
 
-            when(profitCalculationService.calculateTotalNetProfit("test@example.com"))
+            when(profitCalculationHelper.calculateTotalNetProfit("test@example.com"))
                     .thenReturn(expectedProfit);
 
             List<Transaction> transactions = Arrays.asList(
