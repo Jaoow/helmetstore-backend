@@ -82,8 +82,8 @@ public class GetMonthlyProfitBreakdownUseCase {
             var inventory = inventoryHelper.getInventoryFromPrincipal(principal);
 
             // Calculate monthly values using ProfitCalculationService
-            BigDecimal monthlyNetProfit = profitCalculationService.calculateNetProfitFromTransactions(monthlyTransactions);
-            BigDecimal monthlyGrossProfit = profitCalculationService.calculateGrossProfitByDateRange(inventory,
+            BigDecimal monthlyNetProfit = profitCalculationHelper.calculateNetProfitFromTransactions(monthlyTransactions);
+            BigDecimal monthlyGrossProfit = profitCalculationHelper.calculateGrossProfitByDateRange(inventory,
                     startOfMonth, startOfNextMonth);
             BigDecimal monthlyExpenseTransactions = profitCalculationHelper
                     .calculateOperationalExpensesFromTransactions(monthlyTransactions);
